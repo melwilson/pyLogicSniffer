@@ -1,0 +1,65 @@
+\documentclass{article}
+\begin{document}
+\title{Sump Device Settings}
+\author{Mel Wilson}
+\date{January 21, 2011}
+\maketitle
+\begin{description} % top level
+\item [Connection Settings] \hfill
+\begin{description}
+\item [Port] -- serial port connected to SUMP device
+\item [Baud] -- baud rate of the serial connection
+\item [Number Scheme] -- function unknown
+\end{description}
+
+\item[Analyzer Settings] \hfill
+\begin{description}
+\item [Sampling Clock] -- source of clock signal to drive sampling
+\begin{description} % Sampling Clock
+  \item[Internal]
+  \item[External Rising]
+  \item[External Falling]
+\end{description}
+\item [Sampling Rate] -- frequency of sample-taking
+\item [Recording Size] -- number of samples to record
+\item [Channel Group] -- check the groups (channels 0..7, 8..15, 16..23, 24..31) to record
+\item [Filter] -- check to apply a noise filter
+\item [Demux] -- function unknown
+\item [RLE] -- function unknown
+\end{description}
+
+\item[Trigger Settings] \hfill
+\begin{description} % Trigger Settings
+\item [Trigger] \hfill
+  \begin{description}
+   \item [None] -- sampling starts immediately
+   \item [Simple] -- sampling starts after a single Parallel or Serial trigger match
+   \item [Complex] --  sampling starts after a combination of trigger matches
+   \end{description}
+\item [Pre/Post Ratio] -- ratio of sampled bits before/after the trigger firing
+
+\item [Stages] \hfill
+\begin{description}
+  \item [Arm] \hfill 
+  \begin{description}
+    \item [Immediately] matching starts  immediately
+    \item [Level ..] matching starts when the trigger level reaches 1, 2, or 3
+    \end{description}
+  \item [Mode] \hfill
+  \begin{description}  
+    \item[Parallel] -- trigger on simultaneous levels in several channels
+    \item[Serial] -- trigger on sequential levels in one channel.
+  \end{description}
+  \item [Channel] -- the input channel which is tested in Serial triggering
+  \item [Mask]	check each channel bit to be used in the trigger
+  \item [Value]	checked bits match when '1', unchecked bits match when '0'
+  \item [Action] \hfill
+  \begin{description}  
+    \item[Capture] -- start sampling
+    \item[Next Level] -- increment the trigger level.
+  \end{description}
+  \item [Delay]	delay (in samples) between firing the trigger and the action.
+  \end{description}
+\end{description} % Trigger Settings
+\end{description} % top level
+\end{document}
