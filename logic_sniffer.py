@@ -213,6 +213,7 @@ class TraceGraphs (wx.Window):
 		scale = self.scale * self.zoom
 		traceheight = self.TRACE_HEIGHT
 		thm1 = traceheight-1
+		thm6 = traceheight-6	# Y-axis height from 0-bit to 1-bit
 		
 		def draw_single_trace (dc, tracedata, ybase):
 			dc.DrawLines (tracedata, 0, ybase)
@@ -220,7 +221,8 @@ class TraceGraphs (wx.Window):
 		for channel in xrange (self.TRACE_MAX):
 			if self.tracedata [channel] is None:
 				tl = (data.data & (1<<channel)) != 0	# logical 0..1 trace values for the channel
-				self.tracedata[channel] = np.array ( [(n, 5 if d else thm1) for n, d in enumerate (tl)] )
+				tl = tl * thm6 + 5			# Y-axis position for each trace point
+				self.tracedata[channel] = np.column_stack ( (np.arange (len (tl)), tl) )
 			draw_single_trace (dc, self.tracedata[channel]*(scale,1), channel*traceheight)
 			
 	def ReDraw (self):
