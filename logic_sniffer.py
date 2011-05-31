@@ -221,7 +221,7 @@ class TraceGraphs (wx.Window):
 		for channel in xrange (self.TRACE_MAX):
 			if self.tracedata [channel] is None:
 				tl = (data.data & (1<<channel)) != 0	# logical 0..1 trace values for the channel
-				tl = tl * thm6 + 5			# Y-axis position for each trace point
+				tl = traceheight - tl * thm6			# Y-axis position for each trace point
 				self.tracedata[channel] = np.column_stack ( (np.arange (len (tl)), tl) )
 			draw_single_trace (dc, self.tracedata[channel]*(scale,1), channel*traceheight)
 			
