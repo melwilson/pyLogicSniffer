@@ -17,8 +17,51 @@ This file is part of pyLogicSniffer.
     You should have received a copy of the GNU General Public License
     along with pyLogicSniffer.  If not, see <http://www.gnu.org/licenses/>.
 '''
-
+import time
 import wx
+
+class AnalyzerFrame (wx.Dialog):
+	'''Free-standing window to display analyzer panel.'''
+	def __init__ (self, parent, settings, tracedata, title='Data'):
+		wx.Dialog.__init__ (self, parent, -1, ''
+				, style=wx.DEFAULT_DIALOG_STYLE|wx.MINIMIZE_BOX)
+		self.SetTitle (title)
+		self.settings = settings
+		#~ self.panel = AnalyzerPanel (self, settings, tracedata)
+		self.panel = self.CreatePanel (settings, tracedata)
+		self.Bind (wx.EVT_CLOSE, self.OnClose)
+		
+		ts = wx.BoxSizer (wx.VERTICAL)
+		ts.Add (wx.StaticText (self, -1, time.ctime (tracedata.capture_time)), 0, wx.EXPAND)
+		#~ ts.Add (wx.StaticText (self, -1, 'SCK:%(sck)d\tMOSI:%(mosi)d\tMISO:%(miso)d\tnSS:%(nss)d' % settings), 0, wx.EXPAND)
+		ts.Add (wx.StaticText (self, -1, self.SettingsDescription (settings)), 0, wx.EXPAND)
+		ts.Add (self.panel, 1, wx.EXPAND)
+		button = wx.Button (self, -1, 'Done')
+		button.Bind (wx.EVT_BUTTON, self.OnClose)
+		hs = wx.BoxSizer (wx.HORIZONTAL)
+		hs.Add ((1,1), 1)
+		hs.Add (button, 0, wx.ALIGN_RIGHT)
+		ts.Add (hs, 0, wx.EXPAND)
+		
+		self.SetAutoLayout (True)
+		self.SetSizer (ts)
+		ts.Fit (self)
+		ts.SetSizeHints (self)
+		
+	def CreatePanel (self, settings, tracedata):
+		'''Return an instance of the analysis panel to include in this window.'''
+		raise NotImplementedError
+			
+	def OnClose (self, evt):
+		wx.CallAfter (self.GetParent().RemoveToolWindow,  self)
+		self.Destroy()
+		
+	def SettingsDescription (self, settings):
+		'''Return a string describing specific settings.'''
+		raise NotImplementedError
+		
+		
+#===========================================================	
 
 class SimpleValidator (wx.PyValidator):
 	'''Validators with simple, sensible defaults.'''
@@ -41,8 +84,8 @@ class SimpleValidator (wx.PyValidator):
 			result =  False
 		result = result and  is_valid (v)
 		if not result:
-			wx.MessageBox (error_message, 'Bad Input', wx.ICON_ERROR|wx.CANCEL)
 			# make sure the erroneous field is selected on the screen
 			ctrl.SetFocus()
 			ctrl.SetSelection (-1, -1)
+			wx.MessageBox (error_message, 'Bad Input', wx.ICON_ERROR|wx.CANCEL)
 		return result

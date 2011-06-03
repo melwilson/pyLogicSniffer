@@ -21,7 +21,8 @@ This file is part of pyLogicSniffer.
 import wx
 import numpy as np
 import collections, itertools
-from analyzer_tools import SimpleValidator
+#~ from analyzer_tools import SimpleValidator
+import analyzer_tools
 
 tool_menu_string = '&UART'	# recommended menu string
 tool_title_string = 'UART'	# recommended title string
@@ -137,15 +138,15 @@ class AnalyzerDialog (wx.Dialog):
 			'stop': optional_int (self.stop_ctrl.GetStringSelection()),
 			}
 			
-class BaudValidator (SimpleValidator):
+class BaudValidator (analyzer_tools.SimpleValidator):
 	def Validate (self, parent):
 		return self.DoValidation (int, lambda v: 0 <= v <= 115200, 'Baud rate must be an integer from 0 to 115200.')
 			
-class LengthValidator (SimpleValidator):
+class LengthValidator (analyzer_tools.SimpleValidator):
 	def Validate (self, parent):
-		return self.DoValidation (int, lambda v: 5 <= v <= 8, 'Pin number must be an integer from 5 to 8.')
+		return self.DoValidation (int, lambda v: 5 <= v <= 8, 'Character length must be an integer from 5 to 8.')
 			
-class PinValidator (SimpleValidator):
+class PinValidator (analyzer_tools.SimpleValidator):
 	def Validate (self, parent):
 		return self.DoValidation (int, lambda v: 0 <= v <= 31, 'Pin number must be an integer from 0 to 31.')
 	
@@ -156,6 +157,8 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		wx.ScrolledWindow.__init__ (self, parent, wx.ID_ANY)
 		self.settings = settings
 		self.tracedata = tracedata
+		channel = self.settings['pin']
+		self.serial_data = (self.tracedata.data & (1<<channel)) != 0
 		
 		self.Analyze()
 		
@@ -167,29 +170,29 @@ class AnalyzerPanel (wx.ScrolledWindow):
 			zeros.sort()
 			ones = [(c, d) for (d, c) in self.hist[1].items()]
 			ones.sort()
-			print 'Zeros (count, duration):', zeros
-			print 'Ones  (count, duration):', ones
+			print 'Zeros (count, duration):', zeros[::-1]
+			print 'Ones  (count, duration):', ones[::-1]
 			print 'Clock:', self.tracedata.frequency, 'Hz'
 			self.auto_bitsize = zeros[-1][1]
 			self.auto_baud = self.tracedata.frequency / self.auto_bitsize
 			print 'Baud: ', self.auto_baud
+			print 'Harmonic zeros:', self._harmonic_histogram (zeros)[::-1]
+			print 'Harmonic ones:', self._harmonic_histogram (ones)[::-1]
+			self.settings['baud'] = self.auto_baud
+			self.GetParent().Refresh()
+			#~ this_fft = np.fft.fft (self.serial_data)
+			#~ print 'FFT:', this_fft
+			#~ print 'FFTFREQ:', np.fft.fftfreq (len (this_fft))	# not useful
 		
 		# Auto baud detect -- like fourier analysis
 		# Auto protocol detect -- bits/byte, parity, stop bits
-	
-	def _channel_data (self):
-		'''Inidvidual samples from the UART data channel.'''
-		channel = self.settings['pin']
-		mask = 1 << channel
-		for v in self.tracedata.data:
-			yield bool (v & mask)
 		
 	def _pulse_histogram (self):
-		'''Histograms of pulse durations in the sample.'''
+		'''dict giving Histograms of pulse durations in the sample.'''
 		hist = [collections.defaultdict (int), collections.defaultdict (int)]
-		samples = self._channel_data()
-		v, c = samples.next(), 1
-		for b in samples:
+		samples = self.serial_data
+		v, c = samples[0], 1
+		for b in samples[1:]:
 			if b == v:
 				c += 1
 			else:
@@ -198,10 +201,40 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		hist[v][c] += 1	# account for the last run
 		self.hist = hist
 		
+	def _harmonic_histogram (self, ph):
+		hist = collections.defaultdict (int)
+		pulses = sorted (ph, cmp=lambda x, y: cmp(x[1], y[1]))	# sort by frequency
+		harmonic = []
+		while pulses:
+			i, f = pulses[0]
+			pulses = pulses[1:]
+			harmonic.append ( (i + sum ([j for j, g in pulses if GCD (f, g) == f]), f) )
+		harmonic.sort()
+		return harmonic
+		
 	def _sample_time (self, sample):
 		'''The real-world time at which a sample was taken.'''
 		settings = self.tracedata
 		return float (sample - settings.read_count + settings.delay_count) / settings.frequency
+	
+	
+#===========================================================	
+class AnalyzerFrame (analyzer_tools.AnalyzerFrame):
+	'''Free-standing window to display UART analyzer panel.'''
+	
+	def CreatePanel (self, settings, tracedata):
+		'''Return an instance of the analysis panel to include in this window.'''
+		return AnalyzerPanel (self, settings, tracedata)
+		
+	def SettingsDescription (self, settings):
+		'''Return a string describing specific settings.'''
+		d = '%s%s%s' % ('neo'[settings['parity']], settings['length'], settings['stop'])
+		return 'Pin:%(pin)s\tBaud:%(baud)s\t' % settings + d
+		
+	def SetTitle (self, title):
+		'''Set the title for this window.'''
+		analyzer_tools.AnalyzerFrame.SetTitle (self, '%s - %s' % (title, tool_title_string))
+
 
 def GCD (n1, n2):
 	if n1 < n2:
@@ -210,11 +243,6 @@ def GCD (n1, n2):
 		n1 -= n2
 		if n1 < n2:	n1, n2 = n2, n1
 	return n1
-	
-print
-for i in xrange (12):
-	print 12, i, GCD (i, 12)
-print
 		
 # Test jig ...
 if __name__ == '__main__':

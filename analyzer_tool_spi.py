@@ -21,7 +21,8 @@ This file is part of pyLogicSniffer.
 import wx
 import numpy as np
 import itertools, time
-from analyzer_tools import SimpleValidator
+#~ from analyzer_tools import SimpleValidator
+import analyzer_tools
 
 tool_menu_string = '&SPI'	# recommended menu string
 tool_title_string = 'SPI'	# recommended title string
@@ -96,7 +97,7 @@ class AnalyzerDialog (wx.Dialog):
 			}
 			
 			
-class SpiPinValidator (SimpleValidator):
+class SpiPinValidator (analyzer_tools.SimpleValidator):
 	def Validate (self, parent):
 		return self.DoValidation (int, lambda v: 0 <= v <= 31, 'Pin number must be an integer from 0 to 31.')
 	
@@ -226,38 +227,56 @@ class AnalyzerPanel (wx.ScrolledWindow):
 	
 	
 #===========================================================	
-class AnalyzerFrame (wx.Dialog):
-	'''SPI tool analysis in an independent Window.'''
-	def __init__ (self, parent, settings, tracedata, title='Data'):
-		wx.Dialog.__init__ (self, parent, -1, ''
-				, style=wx.DEFAULT_DIALOG_STYLE|wx.MINIMIZE_BOX)
-		self.SetTitle (title)
-		self.settings = settings
-		self.panel = AnalyzerPanel (self, settings, tracedata)
-		self.Bind (wx.EVT_CLOSE, self.OnClose)
+class AnalyzerFrame (analyzer_tools.AnalyzerFrame):
+	'''Free-standing window to display SPI analyzer panel.'''
+	
+	def CreatePanel (self, settings, tracedata):
+		'''Return an instance of the analysis panel to include in this window.'''
+		return AnalyzerPanel (self, settings, tracedata)
 		
-		ts = wx.BoxSizer (wx.VERTICAL)
-		ts.Add (wx.StaticText (self, -1, time.ctime (tracedata.capture_time)), 0, wx.EXPAND)
-		ts.Add (wx.StaticText (self, -1, 'SCK:%(sck)d\tMOSI:%(mosi)d\tMISO:%(miso)d\tnSS:%(nss)d' % settings), 0, wx.EXPAND)
-		ts.Add (self.panel, 1, wx.EXPAND)
-		button = wx.Button (self, -1, 'Done')
-		button.Bind (wx.EVT_BUTTON, self.OnClose)
-		hs = wx.BoxSizer (wx.HORIZONTAL)
-		hs.Add ((1,1), 1)
-		hs.Add (button, 0, wx.ALIGN_RIGHT)
-		ts.Add (hs, 0, wx.EXPAND)
-		
-		self.SetAutoLayout (True)
-		self.SetSizer (ts)
-		ts.Fit (self)
-		ts.SetSizeHints (self)
-			
-	def OnClose (self, evt):
-		wx.CallAfter (self.GetParent().RemoveToolWindow,  self)
-		self.Destroy()
+	def SettingsDescription (self, settings):
+		'''Return a string describing specific settings.'''
+		return 'SCK:%(sck)d\tMOSI:%(mosi)d\tMISO:%(miso)d\tnSS:%(nss)d' % settings
 		
 	def SetTitle (self, title):
-		wx.Dialog.SetTitle (self, title + ' - SPI')
+		'''Set the title for this window.'''
+		#~ wx.Dialog.SetTitle (self, title + ' - SPI')
+		analyzer_tools.AnalyzerFrame.SetTitle (self, '%s - %s' % (title, tool_title_string))
+
+
+#~ class AnalyzerFrame (wx.Dialog):
+	#~ '''SPI tool analysis in an independent Window.'''
+	#~ def __init__ (self, parent, settings, tracedata, title='Data'):
+		#~ wx.Dialog.__init__ (self, parent, -1, ''
+				#~ , style=wx.DEFAULT_DIALOG_STYLE|wx.MINIMIZE_BOX)
+		#~ self.SetTitle (title)
+		#~ self.settings = settings
+		#~ self.panel = AnalyzerPanel (self, settings, tracedata)
+		#~ self.Bind (wx.EVT_CLOSE, self.OnClose)
+		
+		#~ ts = wx.BoxSizer (wx.VERTICAL)
+		#~ ts.Add (wx.StaticText (self, -1, time.ctime (tracedata.capture_time)), 0, wx.EXPAND)
+		#~ ts.Add (wx.StaticText (self, -1, 'SCK:%(sck)d\tMOSI:%(mosi)d\tMISO:%(miso)d\tnSS:%(nss)d' % settings), 0, wx.EXPAND)
+		#~ ts.Add (self.panel, 1, wx.EXPAND)
+		#~ button = wx.Button (self, -1, 'Done')
+		#~ button.Bind (wx.EVT_BUTTON, self.OnClose)
+		#~ hs = wx.BoxSizer (wx.HORIZONTAL)
+		#~ hs.Add ((1,1), 1)
+		#~ hs.Add (button, 0, wx.ALIGN_RIGHT)
+		#~ ts.Add (hs, 0, wx.EXPAND)
+		
+		#~ self.SetAutoLayout (True)
+		#~ self.SetSizer (ts)
+		#~ ts.Fit (self)
+		#~ ts.SetSizeHints (self)
+			
+	#~ def OnClose (self, evt):
+		#~ wx.CallAfter (self.GetParent().RemoveToolWindow,  self)
+		#~ self.Destroy()
+		
+	#~ def SetTitle (self, title):
+		#~ ##~ wx.Dialog.SetTitle (self, title + ' - SPI')
+		#~ wx.Dialog.SetTitle (self, '%s - %s' % (title,  tool_title_string))
 		
 		
 #===========================================================	
