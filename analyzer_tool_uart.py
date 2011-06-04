@@ -17,11 +17,9 @@ This file is part of pyLogicSniffer.
     You should have received a copy of the GNU General Public License
     along with pyLogicSniffer.  If not, see <http://www.gnu.org/licenses/>.
 '''
-
 import wx
 import numpy as np
 import collections, itertools
-#~ from analyzer_tools import SimpleValidator
 import analyzer_tools
 
 tool_menu_string = '&UART'	# recommended menu string
@@ -35,9 +33,11 @@ ASCII_ctl_chars = {
 	32:'␠', 
 	127:'␡',
 	}
-_baud_values = [
+baud_values = [
 	110, 300, 600, 1200, 2400, 4800, 9600,
-	14400, 19200, 28800, 31250, 33600, 38400, 56000, 57600,
+	14400, 19200, 28800, 
+	31250, # MIDI
+	33600, 38400, 56000, 57600,
 	115200, 230400, 
 	]
 baudot_murray_letters = {
@@ -69,9 +69,31 @@ def optional_int (s, base=None):
 		
 parity_settings = {
 	'None':0, 'Even':1, 'Odd':2,
+	'n':0, 'e':1, 'o':2,
 	0:'None', 1:'Even', 2:'Odd',
 	}
+		
+def nearest_baud (estimate):
+	'''Find the official baud rate closest to an estimate.'''
+	baud, diff = baud_values[0], abs (estimate-baud_values[0])
+	for b in baud_values[1:]:
+		d = abs (estimate-b)
+		if d < diff:
+			baud, diff = b, d
+	return baud
 
+def baud_difference (estimate, official=None):
+	'''Return string describing the difference between estimated and official baud.'''
+	if official is None:
+		official = nearest_baud (estimate)
+	if official == estimate:
+		return ''
+	elif estimate > official:
+		return '(%s + %s%%)' % (official, int ((estimate-official)/float (official) * 100))
+	else:
+		return '(%s - %s%%)' % (official, int ((official-estimate)/float (official) * 100))
+
+#===========================================================
 class AnalyzerDialog (wx.Dialog):
 	'''Edit settings for UART tool.'''
 	def __init__ (self, parent, settings=None):
@@ -80,7 +102,7 @@ class AnalyzerDialog (wx.Dialog):
 		self.pin_ctrl = wx.TextCtrl (self, wx.ID_ANY, '0', validator=PinValidator())
 		self.auto_ctrl = wx.CheckBox(self, wx.ID_ANY, '')
 		self.baud_ctrl = wx.ComboBox(self, wx.ID_ANY, '9600'
-			, choices=[str(x) for x in _baud_values]
+			, choices=[str(x) for x in baud_values]
 			, validator=BaudValidator())
 		self.parity_ctrl = wx.RadioBox (self, wx.ID_ANY, choices=['None', 'Even', 'Odd'])
 		self.length_ctrl = wx.ComboBox (self, wx.ID_ANY, '8'
@@ -115,17 +137,17 @@ class AnalyzerDialog (wx.Dialog):
 			
 	def SetValue (self, settings):
 		print 'SetValue:', settings
-		pin = settings['pin']
+		pin = settings.get ('pin', None)
 		if pin is not None:	self.pin_ctrl.SetValue (str (pin))
-		auto = settings['auto']
-		if auto is not None:	self.auto_ctrl.SetValue (auto)
-		baud = settings['baud']
+		auto = settings.get ('auto', None)
+		if auto is not None:	self.auto_ctrl.SetValue (int (auto))
+		baud = settings.get ('baud', None)
 		if baud is not None:	self.baud_ctrl.SetStringSelection (str (baud))
-		parity = settings['parity']
+		parity = settings.get ('parity', None)
 		if parity is not None:	self.parity_ctrl.SetStringSelection (parity_settings [parity])
-		length = settings['length']
+		length = settings.get ('length', None)
 		if length is not None:	self.length_ctrl.SetStringSelection (str (length))
-		stop = settings['stop']
+		stop = settings.get ('stop', None)
 		if stop is not None:	self.stop_ctrl.SetStringSelection (str (stop))
 		
 	def GetValue (self):
@@ -160,7 +182,25 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		channel = self.settings['pin']
 		self.serial_data = (self.tracedata.data & (1<<channel)) != 0
 		
+		dg = self.display_grid = wx.grid.Grid (self, -1)
+		dg.CreateGrid (0, 5)
+		dg.SetRowLabelSize (0)
+		dg.SetColLabelValue (0, '#')
+		dg.SetColLabelValue (1, 'μSeconds')
+		dg.SetColLabelValue (2, 'Status')
+		dg.SetColLabelValue (3, 'hex')
+		dg.SetColLabelValue (4, 'ASCII')
+		dg.SetColFormatNumber (0)
+		dg.SetColFormatFloat (1)
+		
 		self.Analyze()
+		dg.AutoSize()
+		
+		ts = wx.BoxSizer (wx.VERTICAL)
+		ts.Add (dg, 1, wx.EXPAND)
+		self.SetAutoLayout (True)
+		self.SetSizer (ts)
+		ts.Fit (self)
 		
 	def Analyze (self):
 		'''Construct a UART interpretation of the trace data.'''
@@ -179,13 +219,65 @@ class AnalyzerPanel (wx.ScrolledWindow):
 			print 'Harmonic zeros:', self._harmonic_histogram (zeros)[::-1]
 			print 'Harmonic ones:', self._harmonic_histogram (ones)[::-1]
 			self.settings['baud'] = self.auto_baud
+			print 'Est.baud \t%s %s\n' % (self.auto_baud, baud_difference (self.auto_baud))
+			
+			data = self.serial_data
+			offset = 0
+			samples_per_char = (1 + 8 + 1) * (self.tracedata.frequency / self.settings['baud'])
+			while offset < len (data):
+				c = self._match_character (data[offset:], 0, 8, 1, offset)
+				if c is not None:
+					self._log_data_byte (offset, c)
+					offset += samples_per_char
+				else:
+					offset += 1
+					
 			self.GetParent().Refresh()
-			#~ this_fft = np.fft.fft (self.serial_data)
-			#~ print 'FFT:', this_fft
-			#~ print 'FFTFREQ:', np.fft.fftfreq (len (this_fft))	# not useful
 		
-		# Auto baud detect -- like fourier analysis
-		# Auto protocol detect -- bits/byte, parity, stop bits
+	def _harmonic_histogram (self, ph):
+		hist = collections.defaultdict (int)
+		pulses = sorted (ph, cmp=lambda x, y: cmp(x[1], y[1]))	# sort by frequency
+		harmonic = []
+		while pulses:
+			i, f = pulses[0]
+			pulses = pulses[1:]
+			harmonic.append ( (i + sum ([j for j, g in pulses if GCD (f, g) == f]), f) )
+		harmonic.sort()
+		return harmonic
+		
+	def _log_data_byte (self, sample, byte):
+		dg, r = self._new_row ()
+		self._log_header (dg, r, sample)
+		dg.SetCellValue (r, 3, '0x%02x' % (byte,))
+		dg.SetCellValue (r, 4, ASCII_ctl_chars.get (byte, chr (byte)))
+			
+	def _log_header (self, dg, r, sample):
+		dg.SetCellValue (r, 0, str (sample))
+		dg.SetCellValue (r, 1, str (self._sample_time (sample)*1e6))
+		
+	def _match_character (self, data, parity, length, stop, offset):
+		w = self.tracedata.frequency / self.settings['baud']
+		try:
+			for b in data[:w-2]:
+				if b != 0:
+					return None	# invalid start bit
+			plength = length + (parity!=0)
+			for b in data[(1+plength)*w+2:(1+plength+stop)*w-2]:
+				if b != 1:
+					return None	# invalid stop bit
+			bits = [data[bx] for bx in xrange (int ((w*3) / 2), plength*w, w)]
+			v = 0
+			for b in bits[::-1]:
+				v = v * 2 + b
+			return v
+		except IndexError:
+			return None
+
+	def _new_row (self):
+		dg = self.display_grid
+		r = dg.GetNumberRows()
+		dg.AppendRows (1)
+		return dg, r
 		
 	def _pulse_histogram (self):
 		'''dict giving Histograms of pulse durations in the sample.'''
@@ -200,17 +292,6 @@ class AnalyzerPanel (wx.ScrolledWindow):
 				v, c = b, 1
 		hist[v][c] += 1	# account for the last run
 		self.hist = hist
-		
-	def _harmonic_histogram (self, ph):
-		hist = collections.defaultdict (int)
-		pulses = sorted (ph, cmp=lambda x, y: cmp(x[1], y[1]))	# sort by frequency
-		harmonic = []
-		while pulses:
-			i, f = pulses[0]
-			pulses = pulses[1:]
-			harmonic.append ( (i + sum ([j for j, g in pulses if GCD (f, g) == f]), f) )
-		harmonic.sort()
-		return harmonic
 		
 	def _sample_time (self, sample):
 		'''The real-world time at which a sample was taken.'''
@@ -228,8 +309,9 @@ class AnalyzerFrame (analyzer_tools.AnalyzerFrame):
 		
 	def SettingsDescription (self, settings):
 		'''Return a string describing specific settings.'''
+		e = baud_difference (settings['baud'])
 		d = '%s%s%s' % ('neo'[settings['parity']], settings['length'], settings['stop'])
-		return 'Pin:%(pin)s\tBaud:%(baud)s\t' % settings + d
+		return 'Pin:%(pin)s\tBaud:%(baud)s ' % settings + e + '\t' + d
 		
 	def SetTitle (self, title):
 		'''Set the title for this window.'''
@@ -240,8 +322,7 @@ def GCD (n1, n2):
 	if n1 < n2:
 		n1, n2 = n2, n1
 	while n2:
-		n1 -= n2
-		if n1 < n2:	n1, n2 = n2, n1
+		n1, n2 = n2, n1 % n2
 	return n1
 		
 # Test jig ...

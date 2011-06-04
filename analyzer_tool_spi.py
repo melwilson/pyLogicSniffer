@@ -21,7 +21,6 @@ This file is part of pyLogicSniffer.
 import wx
 import numpy as np
 import itertools, time
-#~ from analyzer_tools import SimpleValidator
 import analyzer_tools
 
 tool_menu_string = '&SPI'	# recommended menu string
@@ -74,14 +73,15 @@ class AnalyzerDialog (wx.Dialog):
 		ts.SetSizeHints (self)
 			
 	def SetValue (self, settings):
-		self.clock_ctrl.SetValue (str (settings['sck']))
-		self.mosi_ctrl.SetValue (str (settings['mosi']))
-		self.miso_ctrl.SetValue (str (settings['miso']))
-		self.ssel_ctrl.SetValue (str (settings['nss']))
-		self.master_ctrl.SetValue (settings['master'])
-		self.leading_ctrl.SetStringSelection (settings['leading'])
-		self.cpol_ctrl.SetSelection (settings['mode'] >> 1)
-		self.cpha_ctrl.SetSelection (settings['mode'] & 1)
+		if 'sck' in settings:	self.clock_ctrl.SetValue (str (settings['sck']))
+		if 'mosi' in settings:	self.mosi_ctrl.SetValue (str (settings['mosi']))
+		if 'miso' in settings:	self.miso_ctrl.SetValue (str (settings['miso']))
+		if 'nss' in settings:	self.ssel_ctrl.SetValue (str (settings['nss']))
+		if 'master' in settings:	self.master_ctrl.SetValue (settings['master'])
+		if 'leading' in settings:	self.leading_ctrl.SetStringSelection (settings['leading'])
+		if 'mode' in settings:
+			self.cpol_ctrl.SetSelection (settings['mode'] >> 1)
+			self.cpha_ctrl.SetSelection (settings['mode'] & 1)
 		
 	def GetValue (self):
 		return {
@@ -240,43 +240,7 @@ class AnalyzerFrame (analyzer_tools.AnalyzerFrame):
 		
 	def SetTitle (self, title):
 		'''Set the title for this window.'''
-		#~ wx.Dialog.SetTitle (self, title + ' - SPI')
 		analyzer_tools.AnalyzerFrame.SetTitle (self, '%s - %s' % (title, tool_title_string))
-
-
-#~ class AnalyzerFrame (wx.Dialog):
-	#~ '''SPI tool analysis in an independent Window.'''
-	#~ def __init__ (self, parent, settings, tracedata, title='Data'):
-		#~ wx.Dialog.__init__ (self, parent, -1, ''
-				#~ , style=wx.DEFAULT_DIALOG_STYLE|wx.MINIMIZE_BOX)
-		#~ self.SetTitle (title)
-		#~ self.settings = settings
-		#~ self.panel = AnalyzerPanel (self, settings, tracedata)
-		#~ self.Bind (wx.EVT_CLOSE, self.OnClose)
-		
-		#~ ts = wx.BoxSizer (wx.VERTICAL)
-		#~ ts.Add (wx.StaticText (self, -1, time.ctime (tracedata.capture_time)), 0, wx.EXPAND)
-		#~ ts.Add (wx.StaticText (self, -1, 'SCK:%(sck)d\tMOSI:%(mosi)d\tMISO:%(miso)d\tnSS:%(nss)d' % settings), 0, wx.EXPAND)
-		#~ ts.Add (self.panel, 1, wx.EXPAND)
-		#~ button = wx.Button (self, -1, 'Done')
-		#~ button.Bind (wx.EVT_BUTTON, self.OnClose)
-		#~ hs = wx.BoxSizer (wx.HORIZONTAL)
-		#~ hs.Add ((1,1), 1)
-		#~ hs.Add (button, 0, wx.ALIGN_RIGHT)
-		#~ ts.Add (hs, 0, wx.EXPAND)
-		
-		#~ self.SetAutoLayout (True)
-		#~ self.SetSizer (ts)
-		#~ ts.Fit (self)
-		#~ ts.SetSizeHints (self)
-			
-	#~ def OnClose (self, evt):
-		#~ wx.CallAfter (self.GetParent().RemoveToolWindow,  self)
-		#~ self.Destroy()
-		
-	#~ def SetTitle (self, title):
-		#~ ##~ wx.Dialog.SetTitle (self, title + ' - SPI')
-		#~ wx.Dialog.SetTitle (self, '%s - %s' % (title,  tool_title_string))
 		
 		
 #===========================================================	

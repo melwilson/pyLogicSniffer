@@ -27,13 +27,22 @@ from sump_settings import SumpDialog, ID_CAPTURE
 from logic_sniffer_classes import TraceData
 from logic_sniffer_dialogs import BookLabelDialog, LabelDialog, TimeScaleDialog, TracePropertiesDialog, ZoomDialog
 import logic_sniffer_save
-import analyzer_tool_spi as SPI
+#~ import analyzer_tool_spi as SPI
 
 time_units_text = ['nS', 'μS', 'mS', 'S']
 time_units_values = [1000000000, 1000000, 1000, 1]
 		
 
 #===========================================================
+
+#===========================================================
+class PluginTool (object):
+	'''Collect info for a loaded plugin.'''
+	def __init__ (self, tool_id, tool_module, tool_settings):
+		self.idval = tool_id
+		self.module = tool_module
+		self.settings = tool_settings
+		
 #===========================================================
 class TimeLegend (wx.Panel):
 	'''Display a time scale above the trace display.'''
@@ -388,15 +397,6 @@ class TraceWindow (wx.Panel):
 		
 
 #===========================================================
-class PluginTool (object):
-	'''Collect info for a loaded plugin.'''
-	def __init__ (self, tool_id, tool_module, tool_settings):
-		self.idval = tool_id
-		self.module = tool_module
-		self.settings = tool_settings
-		
-
-#===========================================================
 class MyFrame (wx.Frame):
 	'''Top application frame.'''
 	def __init__ (self, plugin_tools=()):
@@ -437,7 +437,7 @@ class MyFrame (wx.Frame):
 				continue
 			module = __import__ (pt)
 			mid = wx.NewId()
-			self.plugins.append ( PluginTool (mid, module, None) )
+			self.plugins.append ( PluginTool (mid, module, plugin_tool_names[pt]) )
 			menubar = self.GetMenuBar()
 			tool_menu = menubar.GetMenu (menubar.FindMenu ('&Tools'))
 			tool_menu.Append (mid, module.tool_menu_string)
@@ -739,37 +739,58 @@ def str_to_list (s):
 if __name__ == '__main__':
 	import ConfigParser, getopt, os, sys
 	
-	app_options = ConfigParser.ConfigParser ( {'baud':'115200', 'plugins':''} )
-	app_options.add_section ('Analyzer')
+	verbose_flag = False
+	
+	app_options = ConfigParser.ConfigParser ()
+	app_options.add_section ('analyzer')
+	app_options.set ('analyzer', 'baud',  str (sump.SUMP_BAUD))
 	# apply options from user and application-level .ini files ..
+	config_paths = []
 	for d in (optional_path (os.environ.get ('HOME', None), '.logicsnifferrc')
 			, optional_path (os.getcwd(), 'logic_sniffer.ini')):
 		if d is not None and os.path.isfile (d):
+			config_paths.append (d)
 			app_options.read (d)
 	# apply environment options ..
 	for e, k in (('LOGICSNIFFER_PORT', 'port'), ('LOGICSNIFFER_BAUD', 'baud'),):
 		if e in os.environ:
-			app_options.set ('Analyzer', k, os.environ[e])
+			app_options.set ('analyzer', k, os.environ[e])
 	# apply options from command-line ..
-	opts, args = getopt.getopt (sys.argv[1:], 'b:p:t:', ['baud=', 'port=', 'tool=',])
+	opts, args = getopt.getopt (sys.argv[1:], 'b:p:t:v', ['baud=', 'port=', 'tool=', 'verbose'])
 	for o, v in opts:
 		if o in ('-b', '--baud'):
-			app_options.set ('Analyzer', 'baud', v)
+			app_options.set ('analyzer', 'baud', v)
 		elif o in ('-p', '--port'):
-			app_options.set ('Analyzer', 'port', v)
+			app_options.set ('analyzer', 'port', v)
 		elif o in ('-t', '--tool'):
-			if app_options.has_option ('Analyzer', 'plugins'):
-				v = app_options.get ('Analyzer', 'plugins') + ',' + v
-			app_options.set ('Analyzer', 'plugins',  v)
-	#~ print 'Options:'
-	#~ print_configparser_contents (app_options)
-	#~ print
-
-	sniffer = sump.SumpInterface (app_options.get ('Analyzer', 'port'), int (app_options.get ('Analyzer', 'baud')))
-	sniffer.reset()
-	print "ID:", sniffer.id_string()
+			new_section = 'plugin '+v
+			app_options.add_section (new_section)
+			app_options.set (new_section, 'module',  v)
+		elif o in ('-v', '--verbose'):
+			verbose_flag = True
+	if verbose_flag:
+		for p in config_paths:
+			print 'Config:', p
+	if verbose_flag:
+		print 'Options:'
+		print_configparser_contents (app_options)
+		print
 	
-	plugin_modules = str_to_list (app_options.get ('Analyzer', 'plugins'))
+	plugin_modules = {}
+	for s in app_options.sections():
+		if s.startswith ('plugin'):
+			d = dict (app_options.items (s))
+			if d['module'] not in plugin_modules:
+				plugin_modules[d['module']] = d
+			else:
+				plugin_modules[d['module']].update (d)
+	if verbose_flag:
+		print 'Plugins:', plugin_modules
+
+	sniffer = sump.SumpInterface (app_options.get ('analyzer', 'port'), int (app_options.get ('analyzer', 'baud')))
+	sniffer.reset()
+	if verbose_flag:
+		print "SUMP ID:", sniffer.id_string()
 	
 	for a in args:
 		pass
