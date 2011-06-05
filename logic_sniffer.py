@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
-'''Client display program for pyLogicSniffer.
+'''Client display program for Open Bench Logic Sniffer 
+and other SUMP analyzers.
 Copyright © 2011, Mel Wilson mwilson@melwilsonsoftware.ca
 This file is part of pyLogicSniffer.
 
