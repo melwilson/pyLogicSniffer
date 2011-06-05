@@ -1,0 +1,75 @@
+<html><head>
+<title>logic_sniffer.py User's Guide</title>
+</head><body>
+<h1 align=center>logic_sniffer.py<br /> User's Guide</h1>
+logic_sniffer.py gets its run-time options from three different sources:<ol>
+<li>configuration files
+<li>Environment variables
+<li>Command-line options
+</ol>
+<h3>Command-line Options</h3>
+<b>logic_sniffer.py</b> [<b>--port=</b><i>p</i>][<b>-p</b> <i>p</i>] [<b>--baud=</b><i>b</i>][<b>-b</b> <i>b</i>] [<b>--verbose</b>][<b>-v</b>]
+<dl>
+<dt><b>--port=</b><i>port</i><br /><b>-p</b> <i>port</i>
+<dd><i>port</i> is the name your operating system gives to the serial port connecting to your OpenBench Logic Sniffer.<br />
+For example: <b>--port=/dev/ttyACM0</b> for a Posix system, <b>--port=COM0</b> on a Windows system.
+<dt><b>--baud=</b><i>baud</i><br /><b>-b</b> <i>baud</i>
+<dd><i>baud</i> gives the baud rate for the connection to your Open Bench Logic Sniffer.<br />
+For example: <b>--baud=115200</b>
+<dt><b>--verbose</b><br /><b>-v</b>
+<dd>calls for extra diagnostic printouts during the logic_sniffer.py execution.
+</dl>
+
+<h3>Environment Variables</h3>
+logic_sniffer.py will get run-time options from these environment variables, unless they are overridden by options in the command-line:
+<dl>
+<dt>LOGICSNIFFER_BAUD
+<dd>sets the baud rate to use in the connection with the Open Bench Logic Sniffer
+<dt>LOGICSNIFFER_PORT
+<dd>sets the port pathname or identifier to use in the connection with the Open Bench Logic Sniffer
+</dl>
+
+<h3>Configuration Files</h3>
+A file named <b>.logicsnifferrc</b> or <b>logic_sniffer.ini</b> can be placed in the user's HOME directory or in
+the current working directory where logic_sniffer.py is run.  
+Options that are set in a configuration file will be overridden by equivalent environment variables or command line options.
+The contents of the file are as usual for a .ini file, with section headers introducing option settings.  Headings and settings are:
+<dl>
+<dt><b>analyzer</b>
+<dd>provides these items:
+  <dl>
+  <dt><b>baud=</b></b><i>bbb</i> <dd><i>bbb</i> represents the baud rate for the connection to the Open Bench Logic Sniffer
+  <dt><b>port=</b><i>pppp</i> <dd><i>pppp</i> represents the pathname or device name for connecting to the Open Bench Logic Sniffer
+  <dt><b>sump_config=</b><i>cccc</i> <dd><i>cccc</i> represents the name of a .sump.ini file holding the initial configuration for the Open Bench Logic Sniffer
+  </dl>
+<dt><b>plugin</b> <i>name</i>
+<dd>describes a data analyzer plugin that will be loaded by logic_sniffer.py .  
+<i>name</i> represents a mnemonic name that is needed only to make the plugin section header unique within the file.
+All following items except "module" give configuration parameters for the specific plugin.
+  <dl>
+  <dt><b>module=</b><i>mmmm</i>
+  <dd><i>mmmm</i> represents the name of the module to be imported by logic_sniffer.py  
+  <dt><i>option</i><b>=</b><i>value</i>
+  <dd><i>option</i> represents the name of a parameter specific to the module.  
+  <i>value</i> represents the option value that will be presented to the module.
+  </dl>
+</dl>
+<p>
+An example of a logic_sniffer.ini file:
+<pre>
+[analyzer]
+port=/dev/ttyACM0
+sump_config=uart-1.sump.ini
+[plugin UART]
+module=analyzer_tool_uart
+pin=1
+auto=1
+[plugin SPI]
+module=analyzer_tool_spi
+sck=3
+mosi=2
+miso=2
+nss=4
+</pre>
+</p>
+</body></html>
