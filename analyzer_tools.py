@@ -27,13 +27,11 @@ class AnalyzerFrame (wx.Dialog):
 				, style=wx.DEFAULT_DIALOG_STYLE|wx.MINIMIZE_BOX)
 		self.SetTitle (title)
 		self.settings = settings
-		#~ self.panel = AnalyzerPanel (self, settings, tracedata)
 		self.panel = self.CreatePanel (settings, tracedata)
 		self.Bind (wx.EVT_CLOSE, self.OnClose)
 		
 		ts = wx.BoxSizer (wx.VERTICAL)
 		ts.Add (wx.StaticText (self, -1, time.ctime (tracedata.capture_time)), 0, wx.EXPAND)
-		#~ ts.Add (wx.StaticText (self, -1, 'SCK:%(sck)d\tMOSI:%(mosi)d\tMISO:%(miso)d\tnSS:%(nss)d' % settings), 0, wx.EXPAND)
 		ts.Add (wx.StaticText (self, -1, self.SettingsDescription (settings)), 0, wx.EXPAND)
 		ts.Add (self.panel, 1, wx.EXPAND)
 		button = wx.Button (self, -1, 'Done')
