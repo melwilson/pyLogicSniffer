@@ -1,0 +1,42 @@
+<html><head>
+<title>logic_sniffer.py Menus</title>
+</head><body>
+<h1 align=center>logic_sniffer.py<br /> Menus</h1>
+<dl>
+<dt>File
+<dd><dl>
+    <dt>New<dd>create a new trace-display page.
+    <dt>Open<dd>create a trace-display page with trace data from a saved file.
+    <dt>Save As<dd>save trace data from the current display page into a file.
+    <dt>Load SUMP config..<dd>load the current SUMP device configuration from a file.
+    <dt>Save SUMP config..<dd>save the current SUMP device configuration into a file.
+    <dt>Quit<dd>exit the logic_sniffer.py program.
+    </dl>
+<dt>View
+<dd><dl>
+    <dt>Legend<dd>set legend text to describe each trace line in the current display page.
+    <dt>Zoom ...<dd>set a zoom factor for the current display page.
+    <dt>Zoom In<dd>zoom in on the current display page by a factor of 2.
+    <dt>Zoom Out<dd>zoom out from the current display page by a factor of 2.
+    </dl>
+<dt>Device
+<dd><dl>
+    <dt>Capture<dd>edit SUMP device settings and start a capture.
+    <dt>Repeat<dd>start a capture with the same device settings as before.
+    <dt>Simulate<dd>create synthetic trace data for software testing.
+    </dl>
+<dt>Tools
+<dd>This menu calls protocol analyzer plugins to decode data from the traces on the current page.
+The contents of the menu will depend on which plugins have been loaded.
+    <dl>
+    <dt>SPI<dd>edit <a href="spi_settings.html">SPI analyzer</a> settings and decode trace data on the current page.
+    <dt>TWI<dd>edit TWI analyzer settings and decode trace data on the current page.
+    <dt>UART<dd>edit <a href="uart_settings.html">UART analyzer</a> settings and decode trace data on the current page.
+    </dl>
+<dt>Help
+<dd><dl>
+    <dt>About<dd>display version and license information for logic_sniffer.py.
+    </dl>
+</dl><!-- all main menus -->
+<hr />
+</body></html>

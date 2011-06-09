@@ -1,0 +1,43 @@
+<html><head>
+<title>logic_sniffer.py SPI Analyzer Settings</title>
+</head><body>
+<h1 align=center>logic_sniffer.py<br />SPI Analyzer Settings</h1>
+
+<p>Specific settings for SPI data analysis are controlled from this dialog:
+
+<img src="spi_settings.png" align="right" />
+
+The various fields are:
+<dl>
+    <dt>SCK<dd>the channel supplying the SCK (serial clock) signal.
+    <dt>MOSI<dd>the channel supplying the MOSI (Master-Out/Slave-In) signal.
+    <dt>MISO<dd>the channel supplying the MISO (Master-In/Slave-Out) signal.
+    <dt>/SS<dd>the channel supplying the negative-logic Slave-Select signal.
+    <dt>Leading Bit<dd>
+        <dl>
+	<dt>MSB<dd>the most-significant bit of a byte is received earliest.
+	<dt>LSB<dd>the least-significant bit of a byte is received earliest.
+	</dl>
+    <dt>Clock<dd>
+        <dl>
+	<dt>Leading Edge<dd>
+	    <dl>
+	        <dt>Rising<dd>the rising edge of an SCK pulse is the leading edge.
+		<dt>Falling<dd>the falling edge of an SCK pulse is the leading edge.
+	    </dl>
+	<dt>Leading Edge Action<dd>
+	    <dl>
+	        <dt>Sample<dd>
+		<dt>Setup<dd>
+	    </dl>
+	</dl>
+</dl>
+
+<h3>Control Buttons</h3>
+<dl>
+    <dt>OK<dd>accepts the SPI analysis settings.
+    <dt>Cancel<dd>throws away the values entered with no further action.
+</dl>
+
+<hr />
+</body></html>
