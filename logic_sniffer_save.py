@@ -19,17 +19,14 @@ This file is part of pyLogicSniffer.
 '''
 
 from logic_sniffer_classes import TraceData
+import cPickle
 import time
 
 def to_file (path, sample):
-	with open (path, 'wt') as savefile:
+	with open (path, 'wb') as savefile:
 		savefile.write ('#Sump analyzer sample\n')
-		savefile.write ('savetime=%s\n' % (time.asctime(),))
-		savefile.write ('frequency=%d\n' % (sample.frequency,))
-		savefile.write ('read_count=%d\n' % (sample.read_count,))
-		savefile.write ('delay_count=%d\n' % (sample.delay_count,))
-		savefile.write ('channel_mask=0x%x\n' % (sample.channel_mask,))
-		savefile.write ('data=%r\n' % (sample.data,))
+		savefile.write ('#Saved at %s\n' % (time.asctime(),))
+		cPickle.dump (sample, savefile, 0)
 	
 
 def from_file_data (savefile):
@@ -46,6 +43,11 @@ def from_file_data (savefile):
 	return TraceData (**values)
 	
 def from_file (path):
-	with open (path, 'rt') as savefile:
-		return from_file_data (savefile)
+	with open (path, 'rb') as savefile:
+		line = savefile.readline()
+		print line,
+		line = savefile.readline()
+		print line,
+		o = cPickle.load (savefile)
+		return o
 		

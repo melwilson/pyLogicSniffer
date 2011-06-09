@@ -28,7 +28,6 @@ from sump_settings import SumpDialog, ID_CAPTURE
 from logic_sniffer_classes import TraceData
 from logic_sniffer_dialogs import BookLabelDialog, LabelDialog, TimeScaleDialog, TracePropertiesDialog, ZoomDialog
 import logic_sniffer_save
-#~ import analyzer_tool_spi as SPI
 
 time_units_text = ['nS', 'μS', 'mS', 'S']
 time_units_values = [1000000000, 1000000, 1000, 1]
@@ -597,6 +596,8 @@ class MyFrame (wx.Frame):
 		d = wx.FileDialog (self, style=wx.FD_OPEN)
 		if d.ShowModal() == wx.ID_OK:
 			sample = logic_sniffer_save.from_file (d.GetPath())
+			tw = self._selected_page()
+			tw.SetData (sample)
 		d.Destroy()
 		
 	def OnFilePageSetup (self, evt):
