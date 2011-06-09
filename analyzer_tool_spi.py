@@ -217,9 +217,9 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		dg, r = self._new_row ()
 		self._log_header (dg, r, sample)
 		if mosi is not None:
-			dg.SetCellValue (r, 3, hex (mosi))
+			dg.SetCellValue (r, 3, '0x%02x' %  (mosi,))
 		if miso is not None:
-			dg.SetCellValue (r, 4, hex (miso))
+			dg.SetCellValue (r, 4, '0x%02x' % (miso,))
 		
 	def _sample_time (self, sample):
 		d = self.tracedata
