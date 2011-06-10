@@ -20,7 +20,6 @@ This file is part of pyLogicSniffer.
 
 import wx
 #~ import wx.richtext
-import sys
 
 ID_CAPTURE = wx.NewId()	# ID number for Capture button
 	
@@ -69,6 +68,10 @@ sampling_rate_settings = LabelledValues (
 	500000, 200000, 100000, 50000, 20000, 10000, 5000, 2000, 1000,
 	500, 200, 100, 50, 20, 10
 	]
+	)
+time_unit_settings = LabelledValues (
+	['samples', 'seconds', 'msec', 'μsec', 'nsec'],
+	[0, 1, 1000, 1000000, 1000000000]
 	)
 trigger_action_settings = LabelledValues (['Capture', 'Next Level'], [1, 0])
 trigger_arm_settings = LabelledValues (['Immediately', 'Level 1', 'Level 2', 'Level 3'], [0, 1, 2, 3])
@@ -120,6 +123,12 @@ def settings_error (message):
 	'''Common error reporting for settings.'''
 	wx.MessageBox (message, 'SUMP Settings Error', style=wx.ICON_ERROR|wx.CANCEL)
 	
+def debug_output (s):
+	#~ import sys
+	#~ sys.stderr.write (s)
+	#~ sys.stderr.flush()
+	return
+	
 
 #===========================================================
 class SumpTriggerPanel (wx.Panel):
@@ -136,6 +145,15 @@ class SumpTriggerPanel (wx.Panel):
 			if label:
 				hs.Add (wx.StaticText (self, wx.ID_ANY, label), 0, wx.ALIGN_CENTER_VERTICAL)
 			hs.Add (ctl, 1, wx.EXPAND)
+			sizer.Add (hs, sizer_ratio, sizer_flags)
+			return ctl
+		
+		def labelled_ctl_list (sizer, label, ctls, sizer_ratio, sizer_flags=wx.EXPAND):
+			hs = wx.BoxSizer (wx.HORIZONTAL)
+			if label:
+				hs.Add (wx.StaticText (self, wx.ID_ANY, label), 0, wx.ALIGN_CENTER_VERTICAL)
+			for ctl, size in ctls:
+				hs.Add (ctl, size, wx.EXPAND)
 			sizer.Add (hs, sizer_ratio, sizer_flags)
 			return ctl
 		
@@ -173,10 +191,12 @@ class SumpTriggerPanel (wx.Panel):
 		
 		self.capture_ctl = wx.RadioBox (self, wx.ID_ANY, 'Action', choices=trigger_action_settings.labels)
 		self.delay_ctl = wx.TextCtrl (self, -1, '0', validator=DelayValidator())
+		self.delay_unit_ctl = wx.Choice (self, wx.ID_ANY, (-1,-1),(-1,-1) #, 'samples'
+				, choices=time_unit_settings.labels, style=wx.CB_READONLY)
 		hs = wx.BoxSizer (wx.HORIZONTAL)
 		hs.Add (self.capture_ctl, 0)
 		hs.Add ((50, 0), 0)
-		labelled_ctl (hs, 'Delay ', self.delay_ctl, 0, wx.ALIGN_CENTER_VERTICAL)
+		labelled_ctl_list (hs, 'Delay ', [(self.delay_ctl, 1),(self.delay_unit_ctl, 0),], 0, wx.ALIGN_CENTER_VERTICAL)
 
 		top_sizer.Add (hs, 0, wx.EXPAND)
 		
@@ -261,6 +281,7 @@ class SumpTriggerPanel (wx.Panel):
 		
 		settings.trigger_start[stage] = trigger_action_settings [self.capture_ctl.GetStringSelection()]
 		settings.trigger_delay[stage] = int (self.delay_ctl.GetValue())
+		settings.trigger_delay_unit[stage] = time_unit_settings[self.delay_unit_ctl.GetStringSelection()]
 
 #===========================================================
 class SumpDialog (wx.Dialog):
@@ -279,7 +300,7 @@ class SumpDialog (wx.Dialog):
 			
 		# Connection Settings
 		self.port_ctl = wx.TextCtrl (self, -1, '/dev/ttyACM?')
-		self.baud_ctl =  wx.ComboBox (self, wx.ID_ANY, '115200', choices=baud_rate_settings.labels)
+		self.baud_ctl =  wx.ComboBox (self, wx.ID_ANY, '115200', choices=baud_rate_settings.labels, style=wx.CB_READONLY)
 		self.connection_numbering_ctl = wx.RadioBox (self, wx.ID_ANY, 'Number Scheme '
 				, choices=number_scheme_settings.labels )
 		conbox = wx.StaticBox (self, wx.ID_ANY, 'Connection Settings')
@@ -291,8 +312,8 @@ class SumpDialog (wx.Dialog):
 		# Analyzer Settings
 		self.sampling_clock_ctl = wx.RadioBox (self, wx.ID_ANY, 'Sampling Clock',
 				choices=sampling_clock_settings.labels )
-		self.sampling_rate_ctl = wx.ComboBox (self, wx.ID_ANY, '200MHz', choices=sampling_rate_settings.labels)		
-		self.recording_size_ctl = wx.ComboBox (self, wx.ID_ANY, '4K', choices=recording_size_settings.labels)	
+		self.sampling_rate_ctl = wx.ComboBox (self, wx.ID_ANY, '200MHz', choices=sampling_rate_settings.labels, style=wx.CB_READONLY)		
+		self.recording_size_ctl = wx.ComboBox (self, wx.ID_ANY, '4K', choices=recording_size_settings.labels, style=wx.CB_READONLY)	
 		anabox = wx.StaticBox (self, wx.ID_ANY, 'Analyzer Settings')
 		anasizer = wx.StaticBoxSizer (anabox, wx.VERTICAL)
 		anasizer.Add (self.sampling_clock_ctl, 0, 0)
@@ -318,7 +339,7 @@ class SumpDialog (wx.Dialog):
 		
 		# Trigger Settings
 		self.trigger_enable_ctl = wx.RadioBox (self, wx.ID_ANY, 'Enable', choices=trigger_enable_settings.labels)
-		self.recording_ratio_ctl = wx.ComboBox (self, wx.ID_ANY, '0/100', choices=delay_ratio_settings.labels)
+		self.recording_ratio_ctl = wx.ComboBox (self, wx.ID_ANY, '0/100', choices=delay_ratio_settings.labels, style=wx.CB_READONLY)
 		trigger_details = wx.Notebook (self, -1)
 		self.trigger_pages = [SumpTriggerPanel (trigger_details, stage) for stage in xrange (4)]
 		for p in self.trigger_pages:
@@ -357,10 +378,13 @@ class SumpDialog (wx.Dialog):
 		capture_button.Bind (wx.EVT_BUTTON, self.OnCapture)
 		self.trigger_enable_ctl.Bind (wx.EVT_RADIOBOX, self.OnTriggerEnableChange)
 		
-		self.SetAutoLayout (True)
+		#~ self.SetAutoLayout (True)
+		#~ self.SetSizer (top_sizer)
+		#~ top_sizer.Fit (self)
+		#~ top_sizer.SetSizeHints (self)
 		self.SetSizer (top_sizer)
-		top_sizer.Fit (self)
-		top_sizer.SetSizeHints (self)
+		self.SetInitialSize()
+
 		
 	def _enable_valid_triggers (self, enable_setting):
 		'''Enable or disable trigger edit controls, depending on a trigger_enable value.'''
@@ -479,11 +503,11 @@ class DocumentationWindow (wx.Window):
 	def __init__ (self, parent):
 		wx.Window.__init__ (self, parent, -1)
 		panel = wx.Panel (self, -1)
-		#~ docctl = wx.richtext.RichTextCtrl (panel, -1, "", style=wx.richtext.RE_READONLY|wx.richtext.RE_MULTILINE)
-		#~ sys.stderr.write ('Created RichTextCtrl\n'); sys.stderr.flush()
-		#~ docctl.AppendText (helptext)
-		#~ sys.stderr.write ('Appended Text\n'); sys.stderr.flush()
-		docctl = wx.TextCtrl (panel, -1, helptext, style=wx.TE_READONLY|wx.TE_MULTILINE)
+		#~ doc_ctl = wx.richtext.RichTextCtrl (panel, -1, "", style=wx.richtext.RE_READONLY|wx.richtext.RE_MULTILINE)
+		#~ debug_output ('Created RichTextCtrl\n')
+		#~ doc_ctl.AppendText (helptext)
+		#~ debug_output ('Appended Text\n')
+		doc_ctl = wx.TextCtrl (panel, -1, helptext, style=wx.TE_READONLY|wx.TE_MULTILINE)
 		vs = wx.BoxSizer (wx.VERTICAL)
 		vs.Add (panel, 1, wx.EXPAND)
 		
@@ -537,4 +561,16 @@ class ChannelValidator (SimpleValidator):
 class DelayValidator (SimpleValidator):
 	def Validate (self, parent):
 		return self.DoValidation (int, lambda v: 0 <= v <= 65535, 'Delay value must be an integer from 0 to 65535.')
+		
+class DelayValidator_1 (SimpleValidator):
+	def Validate (self, parent):
+		delay_unit_name = parent.GetParent().delay_units_ctl.GetStringSelection()
+		delay_units = time_unit_settings[delay_unit_name]
+		if delay_units == 0:
+			delay_limit = 65535
+			err_string = 'Delay value must be an integer from 0 to 65535.'
+		else:
+			delay_limit = 99999
+			err_string = 'Delay value must be an integer from 0 to %d %s.' % (delay_limit, delay_unit_name) 
+		return self.DoValidation (int, lambda v, limit=delay_limit: 0 <= v <= limit, err_string)
 		
