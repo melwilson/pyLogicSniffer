@@ -43,6 +43,10 @@ delay_ratio_settings = LabelledValues (
 	['0/100', '1/7', '25/75', '50/50', '75/25', '7/1', '100/0'],
 	[1.0, .875, .75, .50, .25, .125, 0.0]
 	)
+frequency_settings = LabelledValues (
+	['Hz', 'KHz', 'MHz', 'GHz'],
+	[1, 1000, 1000000, 1000000000]
+	)
 number_scheme_settings = LabelledValues (
 	['Inside', 'Outside', 'Test Mode'], 
 	[0, 1, 2]
@@ -75,6 +79,15 @@ trigger_action_settings = LabelledValues (['Capture', 'Next Level'], [1, 0])
 trigger_arm_settings = LabelledValues (['Immediately', 'Level 1', 'Level 2', 'Level 3'], [0, 1, 2, 3])
 trigger_enable_settings = LabelledValues (['None', 'Simple', 'Complex'], [0, 1, 2])
 trigger_mode_settings = LabelledValues (['Parallel', 'Serial'], [0, 1])
+		
+def _frequency_with_unit (rate):
+	'''Return a frequency and unit string, normalized to Hz, KHz, MHz, etc. for easy reading.'''
+	for val in frequency_settings.values:
+		if float (rate) / val < 1000:
+			return float (rate) / val, frequency_settings[val]
+	val = frequency_settings.values[-1]
+	return float (rate) / val, frequency_settings[val]
+
 
 helptext = """
 Connection Settings
@@ -227,8 +240,8 @@ class SumpTriggerPanel (wx.Panel):
 		for val in time_unit_settings.values[1:]:
 			if max_seconds * val > 1:
 				break
-		error_message = ('''For sample rate %d\ndelay can't exceed %g %s'''
-				% (sample_rate, max_seconds*val, time_unit_settings[val]))
+		error_message = ('''For sample rate %g %s\ndelay can't exceed %g %s'''
+				% (_frequency_with_unit (sample_rate) + (max_seconds*val, time_unit_settings[val])))
 		settings_error (error_message)
 		# make sure the erroneous field is selected on the screen
 		ctrl = self.delay_ctl
