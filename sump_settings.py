@@ -57,20 +57,18 @@ sampling_clock_settings = LabelledValues (
 	)
 sampling_rate_settings = LabelledValues (
 	[
-	#~ '200MHz', 
 	'100MHz', '50MHz', '20MHz', '10MHz', '5MHz', '2MHz', '1MHz',
 	'500KHz', '200KHz', '100KHz', '50KHz', '20KHz', '10KHz', '5KHz', '2KHz', '1KHz',
 	'500', '200', '100', '50', '20', '10'
 	],
 	[
-	#~ 200000000, 
 	100000000, 50000000, 20000000, 10000000, 5000000, 2000000, 1000000,
 	500000, 200000, 100000, 50000, 20000, 10000, 5000, 2000, 1000,
 	500, 200, 100, 50, 20, 10
 	]
 	)
 time_unit_settings = LabelledValues (
-	['samples', 'seconds', 'msec', 'μsec', 'nsec'],
+	['samples', 'seconds', 'msec', u'μsec', 'nsec'],
 	[0, 1, 1000, 1000000, 1000000000]
 	)
 trigger_action_settings = LabelledValues (['Capture', 'Next Level'], [1, 0])
@@ -200,49 +198,48 @@ class SumpTriggerPanel (wx.Panel):
 
 		top_sizer.Add (hs, 0, wx.EXPAND)
 		
-		self.SetAutoLayout (True)
 		self.SetSizer (top_sizer)
-		top_sizer.Fit (self)
-		top_sizer.SetSizeHints (self)
+		self.SetInitialSize()
 		
-	def ValuesFromDevice (self, device):
-		'''Fill control values from a Trigger Stage in a SUMP device object.'''
-		stage = self.stage
-		self.arm_ctl.SetStringSelection (trigger_arm_settings [device.trigger_level [stage]])
-		self.mode_ctl.SetStringSelection (trigger_mode_settings [device.trigger_serial [stage]])
-		self.serial_channel_ctl.SetValue (str (device.trigger_channel[stage]))
+	def _delay_from_units (self, sample_rate):
+		'''Calcuate trigger delay in samples from control setting in samples or seconds.'''
+		delay = float (self.delay_ctl.GetValue())
+		delay_unit = time_unit_settings [self.delay_unit_ctl.GetStringSelection()]
+		if delay_unit == 0:
+			return int (delay)	# delay is in samples, 
+		# convert delay in seconds to delay in samples
+		return int ((delay * sample_rate) / delay_unit)
 		
-		trigger_mask = device.trigger_mask [stage]
-		for i, ctl in enumerate (self.mask_controls):
-			ctl.SetValue (bool (trigger_mask & (1<<i)))
+	def _delay_to_units (self, samples, delay_unit, sample_rate):
+		'''Calculate control setting in samples or seconds from trigger delay in samples.'''
+		if delay_unit == 0:
+			return samples
+		return (float (samples) * delay_unit) / sample_rate
+
+	def _validate_delay (self, sample_rate):
+		'''Validate a trigger delay, which may be expressed in seconds,
+		given a configured sample rate.'''
+		samples = self._delay_from_units (sample_rate)
+		if 0 <= samples <= 65535:
+			return True
 			
-		trigger_values = device.trigger_values [stage]
-		for i, ctl in enumerate (self.value_controls):
-			ctl.SetValue (bool (trigger_values & (1<<i)))
-			
-		self.capture_ctl.SetStringSelection (trigger_action_settings[device.trigger_start[stage]])	# RadioBox
-		self.delay_ctl.SetValue (str (device.trigger_delay[stage]))
-		
-	def ValuesToDevice (self, device):
-		'''Update Trigger Stage settings in a SUMP device object from control values.'''
-		stage = self.stage
-		device.trigger_level[stage] = trigger_arm_settings [self.arm_ctl.GetStringSelection()]
-		device.trigger_serial[stage] = trigger_mode_settings [self.mode_ctl.GetStringSelection()]
-		device.trigger_channel[stage] = int (self.serial_channel_ctl.GetValue())
-		
-		trigger_mask = 0
-		for i, ctl in enumerate (self.mask_controls):
-			trigger_mask |= ctl.IsChecked() << i
-		device.trigger_mask[stage] = trigger_mask
-		
-		trigger_values = 0
-		for i, ctl in enumerate (self.value_controls):
-			trigger_values |= ctl.IsChecked() << i
-		device.trigger_values[stage] = trigger_values
-		
-		device.trigger_start[stage] = trigger_action_settings [self.capture_ctl.GetStringSelection()]
-		device.trigger_delay[stage] = int (self.delay_ctl.GetValue())
-		
+		max_seconds = 65535.0/sample_rate
+		for val in time_unit_settings.values[1:]:
+			if max_seconds * val > 1:
+				break
+		error_message = ('''For sample rate %d\ndelay can't exceed %g %s'''
+				% (sample_rate, max_seconds*val, time_unit_settings[val]))
+		settings_error (error_message)
+		# make sure the erroneous field is selected on the screen
+		ctrl = self.delay_ctl
+		ctrl.SetFocus()
+		ctrl.SetSelection (-1, -1)
+		notebook = self.GetParent()
+		for p in xrange (notebook.GetPageCount()):
+			if notebook.GetPage (p) is self:
+				notebook.SetSelection (p)
+				break
+		return False
 		
 	def ValuesFromSettings (self, settings):
 		'''Fill control values from a Trigger Stage in a SUMP device object.'''
@@ -260,7 +257,10 @@ class SumpTriggerPanel (wx.Panel):
 			ctl.SetValue (bool (trigger_values & (1<<i)))
 			
 		self.capture_ctl.SetStringSelection (trigger_action_settings[settings.trigger_start[stage]])	# RadioBox
-		self.delay_ctl.SetValue (str (settings.trigger_delay[stage]))
+		sampling_rate = int (settings.clock_rate / settings.divider)
+		self.delay_ctl.SetValue (str (
+				self._delay_to_units (settings.trigger_delay[stage], settings.trigger_delay_unit[stage], sampling_rate) ))
+		self.delay_unit_ctl.SetStringSelection (time_unit_settings[settings.trigger_delay_unit[stage]])
 		
 	def ValuesToSettings (self, settings):
 		'''Update Trigger Stage settings in a repository from control values.'''
@@ -280,7 +280,8 @@ class SumpTriggerPanel (wx.Panel):
 		settings.trigger_values[stage] = trigger_values
 		
 		settings.trigger_start[stage] = trigger_action_settings [self.capture_ctl.GetStringSelection()]
-		settings.trigger_delay[stage] = int (self.delay_ctl.GetValue())
+		settings.trigger_delay[stage] = self._delay_from_units (settings.clock_rate / settings.divider)
+		print 'SumpTriggerPanel.ValuesToSettings trigger_delay[%d] %g' % (stage, settings.trigger_delay[stage])
 		settings.trigger_delay_unit[stage] = time_unit_settings[self.delay_unit_ctl.GetStringSelection()]
 
 #===========================================================
@@ -378,10 +379,6 @@ class SumpDialog (wx.Dialog):
 		capture_button.Bind (wx.EVT_BUTTON, self.OnCapture)
 		self.trigger_enable_ctl.Bind (wx.EVT_RADIOBOX, self.OnTriggerEnableChange)
 		
-		#~ self.SetAutoLayout (True)
-		#~ self.SetSizer (top_sizer)
-		#~ top_sizer.Fit (self)
-		#~ top_sizer.SetSizeHints (self)
 		self.SetSizer (top_sizer)
 		self.SetInitialSize()
 
@@ -401,6 +398,13 @@ class SumpDialog (wx.Dialog):
 			self.recording_ratio_ctl.Enable()
 			for p in self.trigger_pages:
 				p.Enable()
+				
+	def _get_sample_rate (self):
+		'''Return the sample rate called for by these settings.'''
+		rate = sampling_rate_settings[self.sampling_rate_ctl.GetStringSelection()]
+		if self.demux_ctl.GetValue():
+			rate *= 2
+		return rate
 		
 	def OnCapture (self, evt):
 		self.EndModal (ID_CAPTURE)
@@ -413,6 +417,17 @@ class SumpDialog (wx.Dialog):
 	def OnTriggerEnableChange (self, evt):
 		self._enable_valid_triggers (evt.GetString())
 		evt.Skip()
+			
+			
+	def Validate (self):
+		return wx.Dialog.Validate (self) and self._validate_trigger_delays()
+		
+	def _validate_trigger_delays (self):
+		sample_rate = self._get_sample_rate()
+		for tp in self.trigger_pages:
+			if not tp._validate_delay (sample_rate):
+				return False
+		return True
 		
 		
 	def ValuesFromSettings (self, settings):
@@ -425,8 +440,10 @@ class SumpDialog (wx.Dialog):
 		
 		#~ self.connection_numbering_ctl.SetStringSelection (number_scheme_settings[settings.number_scheme???])
 		self.sampling_clock_ctl.SetStringSelection (sampling_clock_settings[sampling_clock])
-		self.sampling_rate_ctl.SetValue (sampling_rate_settings[int (sampling_rate)])
-		self.recording_size_ctl.SetValue (recording_size_settings[settings.read_count])
+		#~ self.sampling_rate_ctl.SetValue (sampling_rate_settings[int (sampling_rate)])
+		self.sampling_rate_ctl.SetStringSelection (sampling_rate_settings[int (sampling_rate)])
+		#~ self.recording_size_ctl.SetValue (recording_size_settings[settings.read_count])
+		self.recording_size_ctl.SetStringSelection (recording_size_settings[settings.read_count])
 		
 		channel_groups = settings.channel_groups
 		for ctl, mask in zip (self.group_controls, (1, 2, 4, 8)):
@@ -437,13 +454,15 @@ class SumpDialog (wx.Dialog):
 		#~ self.rle_ctl.SetValue (settings.rle???)
 		for v in delay_ratio_settings.values:
 			if settings.delay_count >= v * settings.read_count:
-				self.recording_ratio_ctl.SetValue (delay_ratio_settings[v])
+				#~ self.recording_ratio_ctl.SetValue (delay_ratio_settings[v])
+				self.recording_ratio_ctl.SetStringSelection (delay_ratio_settings[v])
 				break
 		self.trigger_enable_ctl.SetStringSelection (settings.trigger_enable)
 
 		for p in self.trigger_pages:
 			p.ValuesFromSettings (settings)
-			
+		
+		
 	def ValuesToSettings (self, settings):
 		'''Create SUMP settings repository from control values.'''
 		#~ settings.portstr = self.port_ctl.GetValue()
@@ -511,10 +530,8 @@ class DocumentationWindow (wx.Window):
 		vs = wx.BoxSizer (wx.VERTICAL)
 		vs.Add (panel, 1, wx.EXPAND)
 		
-		self.SetAutoLayout (True)
 		self.SetSizer (vs)
-		vs.Fit (self)
-		vs.SetSizeHints (self)
+		self.SetInitialSize()
 
 
 #===========================================================
@@ -528,7 +545,8 @@ class SimpleValidator (wx.PyValidator):
 		
 	def TransferToWindow (self):
 		return True
-
+		
+class PagedControlValidator (SimpleValidator):
 	def DoValidation (self, converter, is_valid, error_message):
 		'''For use by descendent classes' Validate methods.'''
 		ctrl = self.GetWindow()
@@ -554,23 +572,10 @@ class SimpleValidator (wx.PyValidator):
 		return result
 		
 		
-class ChannelValidator (SimpleValidator):
+class ChannelValidator (PagedControlValidator):
 	def Validate (self, parent):
 		return self.DoValidation (int, lambda v: 0 <= v <= 31, 'Channel value must be an integer from 0 to 31.')
 		
-class DelayValidator (SimpleValidator):
+class DelayValidator (PagedControlValidator):
 	def Validate (self, parent):
-		return self.DoValidation (int, lambda v: 0 <= v <= 65535, 'Delay value must be an integer from 0 to 65535.')
-		
-class DelayValidator_1 (SimpleValidator):
-	def Validate (self, parent):
-		delay_unit_name = parent.GetParent().delay_units_ctl.GetStringSelection()
-		delay_units = time_unit_settings[delay_unit_name]
-		if delay_units == 0:
-			delay_limit = 65535
-			err_string = 'Delay value must be an integer from 0 to 65535.'
-		else:
-			delay_limit = 99999
-			err_string = 'Delay value must be an integer from 0 to %d %s.' % (delay_limit, delay_unit_name) 
-		return self.DoValidation (int, lambda v, limit=delay_limit: 0 <= v <= limit, err_string)
-		
+		return self.DoValidation (float, lambda v: 0 <= v <= 65535, 'Delay value must be an integer from 0 to 65535.')

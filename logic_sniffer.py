@@ -29,8 +29,11 @@ from logic_sniffer_classes import TraceData
 from logic_sniffer_dialogs import BookLabelDialog, LabelDialog, TimeScaleDialog, TracePropertiesDialog, ZoomDialog
 import logic_sniffer_save
 
-time_units_text = ['nS', 'μS', 'mS', 'S']
+time_units_text = ['nS', u'μS', 'mS', 'S']
 time_units_values = [1000000000, 1000000, 1000, 1]
+
+# File dialog wildcard string for SUMP saved settings ..
+sump_ini_wildcards = 'SUMP INI files|*.sump.ini|INI files (*.ini)|*.ini|all files (*)|*'
 		
 
 #===========================================================
@@ -415,7 +418,7 @@ class MyFrame (wx.Frame):
 		self.SetMenuBar (self._main_menu())
 		self.tracebook.Bind (wx.EVT_RIGHT_DOWN, self.OnBookRClick)
 		
-		print 'Plugins:', repr (plugin_tools)
+		if verbose_flag:	print 'Plugins:', repr (plugin_tools)
 		self._load_plugins (plugin_tools)
 		
 		statusbar = wx.StatusBar (self)
@@ -430,14 +433,14 @@ class MyFrame (wx.Frame):
 		top_sizer.Fit (self)
 		top_sizer.SetSizeHints (self)
 		
-	def _load_plugins (self, plugin_tool_names):
+	def _load_plugins (self, registered_plugin_tools):
 		'''Finish off the main menu with external plugin modules.'''
-		for pt in plugin_tool_names:
+		for pt in registered_plugin_tools:
 			if not pt:	# glitches in option handling can give us empty module names
 				continue
 			module = __import__ (pt)
 			mid = wx.NewId()
-			self.plugins.append ( PluginTool (mid, module, plugin_tool_names[pt]) )
+			self.plugins.append ( PluginTool (mid, module, registered_plugin_tools[pt]) )
 			menubar = self.GetMenuBar()
 			tool_menu = menubar.GetMenu (menubar.FindMenu ('&Tools'))
 			tool_menu.Append (mid, module.tool_menu_string)
@@ -515,18 +518,22 @@ class MyFrame (wx.Frame):
 				
 	def DoCapture (self):
 		tw = self._selected_page()
-		#~ progress_dialog = wx.ProgressDialog ('Sump Client', 'Reading samples', sniffer.read_count, self)
 		wx.BeginBusyCursor()
 		sniffer.send_settings (tw.settings)
-		d = sniffer.capture (tw.settings)
-		#~ progress_dialog.Update (sniffer.read_count)
-		sys.stderr.write ('captured\n'); sys.stderr.flush()
-		tw.SetData (self._captured_sump_data (tw.settings, d))
+		try:
+			d = sniffer.capture (tw.settings)
+		except KeyboardInterrupt:
+			sniffer.reset()
+			d = None
+			sys.stderr.write ('interrupted\n'); sys.stderr.flush()
 		wx.EndBusyCursor()
+		if d is not None:
+			sys.stderr.write ('captured\n'); sys.stderr.flush()
+			tw.SetData (self._captured_sump_data (tw.settings, d))
 		
 	def DoSimulate (self):
 		tw = self._selected_page()
-		d = self.data = np.array ( xrange (tw.settings.read_count), dtype=np.uint32)
+		d = self.data = np.arange (tw.settings.read_count, dtype=np.uint32)
 		sys.stderr.write ('simulated\n'); sys.stderr.flush()
 		tw.SetData (self._captured_sump_data (tw.settings, d))
 		
@@ -545,25 +552,31 @@ class MyFrame (wx.Frame):
 	def OnDeviceCapture (self, evt):
 		tw = self._selected_page()
 		d = SumpDialog (self, tw.settings)
-		result = d.ShowModal()
-		if result in (wx.ID_OK, ID_CAPTURE):
-			if not d.Validate():
-				return
-			d.ValuesToSettings (tw.settings)
-			if result == ID_CAPTURE:
-				self.DoCapture()
+		while True:
+			result = d.ShowModal()
+			if result in (wx.ID_OK, ID_CAPTURE):
+				if d.Validate():
+					d.ValuesToSettings (tw.settings)
+					if result == ID_CAPTURE:
+						self.DoCapture()
+					break
+			else: 
+				break
 		d.Destroy()
 		
 	def OnDeviceSimulate (self, evt):
 		tw = self._selected_page()
 		d = SumpDialog (self, tw.settings)
-		result = d.ShowModal()
-		if result in (wx.ID_OK, ID_CAPTURE):
-			if not d.Validate():
-				return
-			d.ValuesToSettings (tw.settings)
-			if result == ID_CAPTURE:
-				self.DoSimulate()
+		while True:
+			result = d.ShowModal()
+			if result in (wx.ID_OK, ID_CAPTURE):
+				if d.Validate():
+					d.ValuesToSettings (tw.settings)
+					if result == ID_CAPTURE:
+						self.DoSimulate()
+					break
+			else: 
+				break
 		d.Destroy()
 		
 	def OnDeviceRepeat (self, evt):
@@ -578,7 +591,7 @@ class MyFrame (wx.Frame):
 	def OnFileLoadSumpConfig (self, evt):
 		'''Load the current SUMP settings from a config file.'''
 		d = wx.FileDialog (self, 'Load SUMP Settings from...'
-				, wildcard='SUMP INI files|*.sump.ini|INI files (*.ini)|*.ini|all files (*)|*'
+				, wildcard=sump_ini_wildcards
 				, style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST)
 		page = self._selected_page()
 		if hasattr (page, 'config_path'):
@@ -624,7 +637,7 @@ class MyFrame (wx.Frame):
 	def OnFileSaveSumpConfigAs (self, evt):
 		'''Save the current SUMP settings in a config file.'''
 		d = wx.FileDialog (self, 'Save SUMP Settings to...'
-				, wildcard='SUMP INI files|*.sump.ini|INI files (*.ini)|*.ini|all files (*)|*'
+				, wildcard=sump_ini_wildcards
 				, style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT)
 		page = self._selected_page()
 		if hasattr (page, 'config_path'):
@@ -790,6 +803,8 @@ if __name__ == '__main__':
 		print 'Plugins:', plugin_modules
 
 	sniffer = sump.SumpInterface (app_options.get ('analyzer', 'port'), int (app_options.get ('analyzer', 'baud')))
+	if verbose_flag:
+		sniffer.set_logfile (sys.stderr)
 	sniffer.reset()
 	if verbose_flag:
 		print "SUMP ID:", sniffer.id_string()
@@ -797,8 +812,8 @@ if __name__ == '__main__':
 	for a in args:
 		pass
 		
-	print 'Starting app'
+	if verbose_flag:	print 'Starting app'
 	app = MyApp (0)
-	print 'Starting loop'
+	if verbose_flag:	print 'Starting loop'
 	app.MainLoop()
 	sniffer.close()

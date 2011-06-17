@@ -29,6 +29,14 @@ class SumpFlagsError (SumpError): '''Illegal combination of flags.'''
 class SumpTriggerEnableError (SumpError): '''Illegal trigger enable setting.'''
 class SumpStageError (SumpError): '''Illegal trigger stage setting.'''
 	
+def little_endian (s4):
+	'''Re-cast 4 bytes as 32-bit int, MSB first.'''
+	return (ord (s4[0]) << 24) | (ord (s4[1]) << 16) | (ord (s4[2]) << 8) | s4[3]
+	
+def little_endian (s4):
+	'''Re-cast 4 bytes as 32-bit int, LSB first.'''
+	return (ord (s4[3]) << 24) | (ord (s4[2]) << 16) | (ord (s4[1]) << 8) | s4[0]
+	
 class SumpDeviceSettings (object):
 	'''Sampling and trigger parameters.'''
 	clock_rate = 100000000	# undivided clock rate, in Hz, from testing with OBLS
@@ -39,24 +47,25 @@ class SumpDeviceSettings (object):
 	def default (self):
 		'''Non-impossible default settings.'''
 		# general settings ..
-		self.divider = 2			# default sampling rate 100MHz
+		self.divider = 2			# default sampling rate 50MHz
 		self.read_count = 4096		# default sampling size
 		self.delay_count = 2048		# default before/after 50/50
-		self.inverted = False
-		self.external = False
-		self.filter = False
-		self.demux = False
+		self.external = False			# True for external trigger
+		self.inverted = False			# True to invert external trigger
+		self.filter = False			# true to filter out glitches shorter than 1/(200MHz)
+		self.demux = False			# True for double-speed sampling
 		self.channel_groups = 0x0	# default all channel groups
 		
 		self.trigger_enable = 'None'
 		# trigger settings, by stage ..
-		self.trigger_mask = [0]*4
-		self.trigger_values = [0]*4
-		self.trigger_delay = [0]*4
-		self.trigger_level = [0]*4
-		self.trigger_channel = [0]*4
+		self.trigger_mask = [0]*4			# 32-bit mask for trigger channels
+		self.trigger_values = [0]*4		# 32-bit match-readings for trigger channels
+		self.trigger_delay = [0]*4			# post-trigger delay in samples
+		self.trigger_delay_unit = [0]*4		# user-preferred units for trigger_delay display
+		self.trigger_level = [0]*4			# level at which trigger stage is armed
+		self.trigger_channel = [0]*4		# channel for serial trigger
 		self.trigger_serial = [False]*4			# default parallel trigger testing
-		self.trigger_start = [True] + [False]*3	# default immediate start
+		self.trigger_start = [True] + [False]*3	# default immediate start from stage 0
 		
 	def clone (self):
 		'''Clone an independent copy of these settings.'''
@@ -69,22 +78,23 @@ class SumpDeviceSettings (object):
 		other.divider = self.divider
 		other.read_count = self.read_count
 		other.delay_count = self.delay_count
-		other.inverted = self.inverted 
 		other.external = self.external
+		other.inverted = self.inverted 
 		other.filter = self.filter
 		other.demux = self.demux
 		other.channel_groups = self.channel_groups
-		other.trigger_mode = self.trigger_mode
+
+		other.trigger_enable = self.trigger_enable
 		
 		# trigger settings, by stage ..
 		other.trigger_mask[:] = self.trigger_mask
 		other.trigger_values[:] = self.trigger_values
 		other.trigger_delay[:] = self.trigger_delay
+		other.trigger_delay_unit[:] = self.trigger_delay_unit
 		other.trigger_level[:] = self.trigger_level
 		other.trigger_channel[:] = self.trigger_channel
 		other.trigger_serial[:] = self.trigger_serial
 		other.trigger_start[:] = self.trigger_start
-		other.trigger_enable = self.trigger_enable
 		
 	def get_sample_rate (self):
 		'''Return the sample rate called for by these settings.'''
@@ -94,12 +104,14 @@ class SumpDeviceSettings (object):
 		return rate
 		
 
+#===========================================================
 class SumpInterface (object):
 	clock_rate = 100000000	# undivided clock rate, in Hz, from testing with OBLS
 	protocol_version = '1.0'
 	
 	def __init__ (self, path, baud=SUMP_BAUD):
 		self.port = serial.Serial (path, baud)
+		self.debug_logger = None
 		self.reset()
 		
 	def reset (self):
@@ -113,22 +125,19 @@ class SumpInterface (object):
 	def capture (self, settings):
 		'''Request a capture.'''
 		read_count = settings.read_count
-		d = self.data = np.zeros ( (read_count,), dtype=np.uint32)
-		mask = settings.channel_groups
+		mask=settings.channel_groups
 		read = self.port.read
-		def reading ():
-			'''Get a 32-bit small-endian reading from the analyzer.'''
-			v = 0
-			if not (mask & 1):	v |= ord (read(1))
-			if not (mask & 2):	v |= ord (read(1)) << 8
-			if not (mask & 4):	v |= ord (read(1)) << 16
-			if not (mask & 8):	v |= ord (read(1)) << 24
-			return v
+		ord_ = ord
 		sys.stderr.write ('reading %d\n'% (read_count,)); sys.stderr.flush()
+		d = np.zeros ((read_count,), dtype=np.uint32)
 		self.port.write ('\x01')
 		for i in xrange (read_count-1, -1, -1):	# readings arrive most-recent-first
-			d[i] = reading()
-			#~ sys.stderr.write ('%d: %x\t' % (i, d[i],)); sys.stderr.flush()
+			v = 0
+			if not (mask & 1):	v |= ord_(read(1))
+			if not (mask & 2):	v |= ord_(read(1)) << 8
+			if not (mask & 4):	v |= ord_(read(1)) << 16
+			if not (mask & 8):	v |= ord_(read(1)) << 24
+			d[i] = v
 		self.reset()
 		return d
 		
@@ -144,14 +153,17 @@ class SumpInterface (object):
 	def xoff (self):
 		self.port.write ('\x13')
 		
-	def _trace_control (self, legend, w=None):
-		if w is None:
+	def _trace_control (self, legend):
+		if self.debug_logger is None:
+			return self.port.write
+		else:
 			w = self.port.write
-		print '\n' + legend + ' \t',
-		def tw (data):
-			print '%02x' % (ord (data),),
-			w (data)
-		return tw
+			logger = self.debug_logger
+			logger.write ('\n' + legend + ' \t')
+			def tw (data):
+				logger.write ('%02x' % (ord (data),)); logger.flush()
+				w (data)
+			return tw
 		
 	def _send_trigger_mask (self, stage, mask):
 		#~ w = self.port.write
@@ -278,38 +290,37 @@ class SumpInterface (object):
 		else:
 			raise SumpTriggerEnableError
 			
+	def set_logfile (self, logfile):
+		self.debug_logger = logfile
+			
 	def query_meta_data (self):
 		result = []
 		self.reset()
 		r = self.port.read
-		self.port.write (0x04)
-		data = []
+		self.port.write ('\x04')
 		while True:
-			c = r (1)
-			if not c:		# end-of-file
+			token = r (1)
+			if not token:		# end-of-file
 				break
-			if not ord (c):		# binary 0 end-of-metadata marker
+			token = ord (token)
+			if not token:		# binary 0 end-of-metadata marker
 				break
-			data.append (c)
-		while data:
-			token = ord (data.pop (0))
-			if token <= 0x1F:	# C-string follows token
-				x = data.index (chr (0))
-				if x < 0:
-					v = ''.join (data)
-					data[:] = []
-				else:
-					v = ''.join (data[:x])
-					data[:x+1] = []
-				result.append ( (token, v) )
+				
+			elif token <= 0x1F:	# C-string follows token
+				v = []
+				while True:
+					x = r (1)
+					if x != '\0':
+						v .append (x)
+					else:
+						break
+				result.append ( (token, ''.join (v)) )
 				
 			elif token <= 0x3F:	# 32-bit int follows token
-				v = (ord (data[0]) << 24) | (ord (data[1]) << 16) | (ord (data[2]) << 8) | ord (data[3])
-				data[:4] = []
-				result.append ( (token, v) )
+				result.append ( (token, little_endian (r (4))) )
 				
 			elif token <= 0x5F:	# 8-bit int follows token
-				result.append ( (token, ord (data.pop (0))) )
+				result.append ( (token, ord (r (1))) )
 				
 			else:
 				result.append ( (token, None) )
@@ -319,3 +330,4 @@ class SumpInterface (object):
 	def close (self):
 		self.port.close()
 		self.port = None
+	
