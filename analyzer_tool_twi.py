@@ -125,12 +125,13 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		for stime, scl, sda in twi_bitstream:
 			if scl == old_scl and sda == old_sda:	# nothing happens
 				continue
-			print stime, '\tSCL:', (old_scl, scl), '\tSDA:', (old_sda, sda)
+
 			if old_scl == scl == 1 and old_sda > sda:	# START condition
 				self._log_start (stime)
-				bitcount = byte_count = 0
+				bitcount = byte_count = data = 0
 			elif old_scl == scl == 1 and old_sda < sda:	# STOP condition
 				self._log_stop (stime)
+				bitcount = byte_count = data = 0
 				
 			elif old_scl == scl == 0:
 				pass	# data line can change while clock is low
