@@ -61,7 +61,7 @@ optional_int_settings = {
 def optional_int (s, base=None):
 	if s in optional_int_settings:
 		return optional_int_settings [s]
-	print 'optional_int:', repr (s)
+	#~ print 'optional_int:', repr (s)
 	if base is not None:
 		return int (s, base)
 	else:
@@ -72,7 +72,8 @@ parity_settings = {
 	'n':0, 'e':1, 'o':2,
 	0:'None', 1:'Even', 2:'Odd',
 	}
-		
+
+
 def nearest_baud (estimate):
 	'''Find the official baud rate closest to an estimate.'''
 	baud, diff = baud_values[0], abs (estimate-baud_values[0])
@@ -92,6 +93,42 @@ def baud_difference (estimate, official=None):
 		return '(%s + %s%%)' % (official, int ((estimate-official)/float (official) * 100))
 	else:
 		return '(%s - %s%%)' % (official, int ((official-estimate)/float (official) * 100))
+	
+def expand_template (bitwidth, defs):
+	'''Turn Run-Length-Encoded list into bits.'''
+	return np.array (sum (([bit]*(count*bitwidth) for count, bit in defs), []), np.int8)
+		
+def character_template (parity, length, stop):
+	'''Mask/value pair, and data length for matching a character format against a sample slice.'''
+	# Significant fields are Start-bit, parity (if any), Stop-bit
+	mask_template = tuple ( ((n,v) for n, v in ((1,1), (length,0), (parity!=0, 1), (stop,1)) if n > 0) )
+	# Set expected values for Start and Stop bits, initialize parity field (if any)
+	value_template = tuple ( ((n,v) for n, v in ((1,0), (length,0), (parity!=0, parity==2), (stop,1)) if n > 0) )
+	return mask_template, value_template
+	
+def character_template_set ():
+	templates = {}
+	for test_parity in xrange (0, 2+1):
+		for test_length in xrange (5, 8+1):
+			for test_stop in xrange (1, 2+1):
+				k = (test_parity, test_length, test_stop)
+				templates[k] = character_template (*k)
+	return templates
+	
+character_templates = character_template_set()	# for bitstream analysis later
+	
+score_signs = [0, 0]
+def character_score (samples, mask, val, (parity, length, stops), bitwidth):
+	'''Score a sample slice for its match with a template.'''
+	if parity:
+		val = np.array (val)
+		parx = (length+1)*bitwidth
+		for i in xrange (bitwidth, (length+1)*bitwidth, bitwidth):
+			val[parx: parx+bitwidth] ^= samples[i: i+bitwidth]
+	matches = (samples == val) * 2 - 1	# array of -1..1 for no-match..match
+	result = sum (matches * mask)		# score only significant sample bits
+	score_signs [result >= 0] += 1
+	return result
 
 #===========================================================
 class AnalyzerDialog (wx.Dialog):
@@ -109,19 +146,19 @@ class AnalyzerDialog (wx.Dialog):
 			, choices=['5', '6', '7', '8', '9']
 			, validator=LengthValidator())
 		self.stop_ctrl = wx.RadioBox (self, wx.ID_ANY, '', choices=['1', '2'])
+		
 		gs = wx.FlexGridSizer (6, 2)
-		gs.Add (wx.StaticText (self, wx.ID_ANY, 'Pin'), 0, wx.ALIGN_CENTER_VERTICAL)
-		gs.Add (self.pin_ctrl, 1, 0)
-		gs.Add (wx.StaticText (self, wx.ID_ANY, 'Auto'), 0, wx.ALIGN_CENTER_VERTICAL)
-		gs.Add (self.auto_ctrl, 1, 0)
-		gs.Add (wx.StaticText (self, wx.ID_ANY, 'Baud'), 0, wx.ALIGN_CENTER_VERTICAL)
-		gs.Add (self.baud_ctrl, 1, 0)
-		gs.Add (wx.StaticText (self, wx.ID_ANY, 'Parity'), 0, wx.ALIGN_CENTER_VERTICAL)
-		gs.Add (self.parity_ctrl, 1, 0)
-		gs.Add (wx.StaticText (self, wx.ID_ANY, 'Length'), 0, wx.ALIGN_CENTER_VERTICAL)
-		gs.Add (self.length_ctrl, 1, 0)
-		gs.Add (wx.StaticText (self, wx.ID_ANY, 'Stop'), 0, wx.ALIGN_CENTER_VERTICAL)
-		gs.Add (self.stop_ctrl, 1, 0)
+		def add_labeled_ctrl (label, ctrl):
+			'''Add a control to gs with a preceding StaticText label.'''
+			gs.Add (wx.StaticText (self, wx.ID_ANY, label), 0, wx.ALIGN_CENTER_VERTICAL)
+			gs.Add (ctrl, 1, 0)
+		
+		add_labeled_ctrl ('Pin', self.pin_ctrl)
+		add_labeled_ctrl ('Auto', self.auto_ctrl)
+		add_labeled_ctrl ('Baud', self.baud_ctrl)
+		add_labeled_ctrl ('Parity', self.parity_ctrl)
+		add_labeled_ctrl ('Length', self.length_ctrl)
+		add_labeled_ctrl ('Stop', self.stop_ctrl)
 		
 		if settings is not None:
 			self.SetValue (settings)
@@ -130,13 +167,11 @@ class AnalyzerDialog (wx.Dialog):
 		ts.Add (gs, 1, wx.ALIGN_CENTER)
 		ts.Add (self.CreateButtonSizer (wx.OK|wx.CANCEL), 0, wx.EXPAND)
 		
-		self.SetAutoLayout (True)
 		self.SetSizer (ts)
-		ts.Fit (self)
-		ts.SetSizeHints (self)
+		self.SetInitialSize()
 			
 	def SetValue (self, settings):
-		print 'SetValue:', settings
+		#~ print 'SetValue:', settings
 		pin = settings.get ('pin', None)
 		if pin is not None:	self.pin_ctrl.SetValue (str (pin))
 		auto = settings.get ('auto', None)
@@ -162,11 +197,11 @@ class AnalyzerDialog (wx.Dialog):
 			
 class BaudValidator (analyzer_tools.SimpleValidator):
 	def Validate (self, parent):
-		return self.DoValidation (int, lambda v: 0 <= v <= 115200, 'Baud rate must be an integer from 0 to 115200.')
+		return self.DoValidation (int, lambda v: 0 <= v <= baud_values[-1], 'Baud rate must be an integer from 0 to 115200.')
 			
 class LengthValidator (analyzer_tools.SimpleValidator):
 	def Validate (self, parent):
-		return self.DoValidation (int, lambda v: 5 <= v <= 8, 'Character length must be an integer from 5 to 8.')
+		return self.DoValidation (int, lambda v: 5 <= v <= 9, 'Character length must be an integer from 5 to 9.')
 			
 class PinValidator (analyzer_tools.SimpleValidator):
 	def Validate (self, parent):
@@ -178,6 +213,7 @@ class AnalyzerPanel (wx.ScrolledWindow):
 	def __init__ (self, parent, settings, tracedata):
 		wx.ScrolledWindow.__init__ (self, parent, wx.ID_ANY)
 		self.settings = settings
+		#~ print 'AnalyzerPanel settings:', settings
 		self.tracedata = tracedata
 		channel = self.settings['pin']
 		self.serial_data = (self.tracedata.data & (1<<channel)) != 0
@@ -198,41 +234,71 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		
 		ts = wx.BoxSizer (wx.VERTICAL)
 		ts.Add (dg, 1, wx.EXPAND)
-		self.SetAutoLayout (True)
 		self.SetSizer (ts)
-		ts.Fit (self)
+		self.SetInitialSize()
 		
 	def Analyze (self):
 		'''Construct a UART interpretation of the trace data.'''
 		if self.settings['auto'] or True:
-			self._pulse_histogram()
-			zeros = [(c, d) for (d, c) in self.hist[0].items()]
-			zeros.sort()
-			ones = [(c, d) for (d, c) in self.hist[1].items()]
-			ones.sort()
-			print 'Zeros (count, duration):', zeros[::-1]
-			print 'Ones  (count, duration):', ones[::-1]
-			print 'Clock:', self.tracedata.frequency, 'Hz'
-			self.auto_bitsize = zeros[-1][1]
-			self.auto_baud = self.tracedata.frequency / self.auto_bitsize
-			print 'Baud: ', self.auto_baud
-			print 'Harmonic zeros:', self._harmonic_histogram (zeros)[::-1]
-			print 'Harmonic ones:', self._harmonic_histogram (ones)[::-1]
-			self.settings['baud'] = self.auto_baud
-			print 'Est.baud \t%s %s\n' % (self.auto_baud, baud_difference (self.auto_baud))
+			self._auto_analyze_baud ()
+			self._auto_analyze_format ()
 			
-			data = self.serial_data
-			offset = 0
-			samples_per_char = (1 + 8 + 1) * (self.tracedata.frequency / self.settings['baud'])
-			while offset < len (data):
-				c = self._match_character (data[offset:], 0, 8, 1, offset)
-				if c is not None:
-					self._log_data_byte (offset, c)
-					offset += samples_per_char
-				else:
-					offset += 1
-					
-			self.GetParent().Refresh()
+		# Report contents of serial data ..
+		data = self.serial_data
+		offset = 0
+		self.parity = 0
+		self.character_length = 8
+		self.stop_bits = 1
+		samples_per_char = (1 + self.character_length + self.stop_bits) * (self.tracedata.frequency / self.settings['baud'])
+		while offset < len (data):
+			c = self._match_character (data[offset:], self.parity, self.character_length, self.stop_bits, offset)
+			if c is not None:
+				self._log_data_byte (offset, c)
+				offset += samples_per_char
+			else:
+				offset += 1
+				
+		self.GetParent().Refresh()
+		
+	def _auto_analyze_baud (self):
+		# Find most probable samples-per-bit value ..
+		self._pulse_histogram()
+		zeros = [(c, d) for (d, c) in self.hist[0].items()]
+		zeros.sort()
+		ones = [(c, d) for (d, c) in self.hist[1].items()]
+		ones.sort()
+		print 'Zeros (count, duration):', zeros[::-1]
+		print 'Ones  (count, duration):', ones[::-1]
+		print 'Clock:', self.tracedata.frequency, 'Hz'
+		self.auto_bitsize = zeros[-1][1]
+		self.auto_baud = self.tracedata.frequency / self.auto_bitsize
+		print 'Baud: ', self.auto_baud
+		print 'Harmonic zeros:', self._harmonic_histogram (zeros)[::-1]
+		print 'Harmonic ones:', self._harmonic_histogram (ones)[::-1]
+		self.settings['baud'] = self.auto_baud
+		print 'Est.baud \t%s %s\n' % (self.auto_baud, baud_difference (self.auto_baud))
+		
+	def _auto_analyze_format (self):
+		# Automatic format detection ..
+		templates = character_template_set ()
+		format_scores = dict ((k, 0) for k in templates)
+		#~ data = self.serial_data
+		data = np.array (self.serial_data, np.int16)
+		data_length = len (data)
+		for offset in xrange (1, data_length):
+			if data[offset-1] == 1 and data[offset] == 0:	# possible start-bit here
+				for k, (mask, val) in templates.items():
+					bitmask = expand_template (self.auto_bitsize, mask)
+					bitval = expand_template (self.auto_bitsize, val)
+					width = len (bitmask)
+					if offset+width < data_length:
+						format_scores[k] += character_score (data[offset:offset+width], bitmask, bitval, k, self.auto_bitsize)
+		print 'Score signs:', score_signs
+		scores = [(v, k) for k, v in format_scores.items()]
+		scores.sort()
+		print 'Format scores:'
+		for x in scores[::-1]:
+			print x
 		
 	def _harmonic_histogram (self, ph):
 		hist = collections.defaultdict (int)

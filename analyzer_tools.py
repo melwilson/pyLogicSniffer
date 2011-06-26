@@ -19,7 +19,18 @@ This file is part of pyLogicSniffer.
 '''
 import time
 import wx
+		
+def partial_bits (bitcount, data, msbfirst=True, bytelength=8, fillchar='x'):
+	'''String representing the bits in a partially-filled byte.'''
+	s = [str ((data >> i) & 1) for i in xrange (bitcount)]
+	xfill = fillchar*(bytelength-bitcount)
+	if msbfirst:
+		return ''.join (s[::-1]) + xfill
+	else:
+		return xfill + ''.join(s)
 
+
+#===========================================================	
 class AnalyzerFrame (wx.Dialog):
 	'''Free-standing window to display analyzer panel.'''
 	def __init__ (self, parent, settings, tracedata, title='Data'):
@@ -41,10 +52,12 @@ class AnalyzerFrame (wx.Dialog):
 		hs.Add (button, 0, wx.ALIGN_RIGHT)
 		ts.Add (hs, 0, wx.EXPAND)
 		
-		self.SetAutoLayout (True)
+		#~ self.SetAutoLayout (True)
+		#~ self.SetSizer (ts)
+		#~ ts.Fit (self)
+		#~ ts.SetSizeHints (self)
 		self.SetSizer (ts)
-		ts.Fit (self)
-		ts.SetSizeHints (self)
+		self.SetInitialSize()
 		
 	def CreatePanel (self, settings, tracedata):
 		'''Return an instance of the analysis panel to include in this window.'''
@@ -73,7 +86,7 @@ class SimpleValidator (wx.PyValidator):
 		return True
 
 	def DoValidation (self, converter, is_valid, error_message):
-		'''For use by descendent classes' Validate methods.'''
+		'''For use by descendent classes Validate methods.'''
 		ctrl = self.GetWindow()
 		result = True
 		try:
@@ -84,6 +97,9 @@ class SimpleValidator (wx.PyValidator):
 		if not result:
 			# make sure the erroneous field is selected on the screen
 			ctrl.SetFocus()
-			ctrl.SetSelection (-1, -1)
+			try:
+				ctrl.SetSelection (-1, -1)	# try selecting editable text
+			except TypeError:
+				pass	# somehow this is not a text control
 			wx.MessageBox (error_message, 'Bad Input', wx.ICON_ERROR|wx.CANCEL)
 		return result
