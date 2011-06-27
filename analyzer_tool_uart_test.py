@@ -5,9 +5,7 @@ import analyzer_tool_uart as M
 # Need unit tests for
 # def expand_template (defs, bitwidth):
 # def character_template (bitwidth, parity, length, stop):
-# def character_template_set (bitwidth):
 # def character_score (samples, mask, val, (parity, length, stops), bitwidth):
-# def scale_template (mask, val, bitwidth):
 
 class TestExpandTemplate (unittest.TestCase):
 	'''Test expanding a series of RLE-terms given samples/bit.'''

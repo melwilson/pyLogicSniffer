@@ -52,10 +52,6 @@ class AnalyzerFrame (wx.Dialog):
 		hs.Add (button, 0, wx.ALIGN_RIGHT)
 		ts.Add (hs, 0, wx.EXPAND)
 		
-		#~ self.SetAutoLayout (True)
-		#~ self.SetSizer (ts)
-		#~ ts.Fit (self)
-		#~ ts.SetSizeHints (self)
 		self.SetSizer (ts)
 		self.SetInitialSize()
 		

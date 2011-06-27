@@ -61,7 +61,6 @@ optional_int_settings = {
 def optional_int (s, base=None):
 	if s in optional_int_settings:
 		return optional_int_settings [s]
-	#~ print 'optional_int:', repr (s)
 	if base is not None:
 		return int (s, base)
 	else:
@@ -72,6 +71,18 @@ parity_settings = {
 	'n':0, 'e':1, 'o':2,
 	0:'None', 1:'Even', 2:'Odd',
 	}
+nibble_parity = {
+	0:0, 1:1, 2:1, 3:0, 4:1, 5:0, 6:0, 7:1,
+	8:1, 9:0, 10:0, 11:1, 12:0, 13:1, 14:1, 15:0
+	}
+def byte_parity (b):	return nibble_parity[(b>>4) & 0xF] ^ nibble_parity [b & 0xF]
+
+def GCD (n1, n2):
+	if n1 < n2:
+		n1, n2 = n2, n1
+	while n2:
+		n1, n2 = n2, n1 % n2
+	return n1
 
 
 def nearest_baud (estimate):
@@ -98,6 +109,10 @@ def expand_template (bitwidth, defs):
 	'''Turn Run-Length-Encoded list into bits.'''
 	return np.array (sum (([bit]*(count*bitwidth) for count, bit in defs), []), np.int8)
 		
+def expand_mask_val (bitwidth, (m, v)):
+	'''Expand a tuple of (mask, value) from RLE into bits.'''
+	return (expand_template (bitwidth, m), expand_template (bitwidth, v))
+		
 def character_template (parity, length, stop):
 	'''Mask/value pair, and data length for matching a character format against a sample slice.'''
 	# Significant fields are Start-bit, parity (if any), Stop-bit
@@ -107,6 +122,7 @@ def character_template (parity, length, stop):
 	return mask_template, value_template
 	
 def character_template_set ():
+	'''Build templates for the common parity/length/stop combinations.'''
 	templates = {}
 	for test_parity in xrange (0, 2+1):
 		for test_length in xrange (5, 8+1):
@@ -117,17 +133,19 @@ def character_template_set ():
 	
 character_templates = character_template_set()	# for bitstream analysis later
 	
-score_signs = [0, 0]
+def sign (n):	return -1 if n < 0 else 0 if n == 0 else 1
+		
+score_signs = [0, 0, 0]
 def character_score (samples, mask, val, (parity, length, stops), bitwidth):
 	'''Score a sample slice for its match with a template.'''
 	if parity:
-		val = np.array (val)
+		val = np.array (val)	# a writable copy of the value template
 		parx = (length+1)*bitwidth
 		for i in xrange (bitwidth, (length+1)*bitwidth, bitwidth):
-			val[parx: parx+bitwidth] ^= samples[i: i+bitwidth]
+			val[parx: parx+bitwidth] ^= samples[i: i+bitwidth]	# accumulate character parity
 	matches = (samples == val) * 2 - 1	# array of -1..1 for no-match..match
 	result = sum (matches * mask)		# score only significant sample bits
-	score_signs [result >= 0] += 1
+	score_signs [sign (result)+1] += 1
 	return result
 
 #===========================================================
@@ -136,16 +154,28 @@ class AnalyzerDialog (wx.Dialog):
 	def __init__ (self, parent, settings=None):
 		wx.Dialog.__init__ (self, parent, wx.ID_ANY, tool_title_string+' Settings')
 		
+		if settings is None:
+			settings = {}
+		self._apply_default_settings (settings)
+				
+		#~ print 'AnalyzerDialog settings:'
+		#~ for k, v in settings.items():
+			#~ print '%r:\t%r' % (k, v)
+		#~ print
+		
 		self.pin_ctrl = wx.TextCtrl (self, wx.ID_ANY, '0', validator=PinValidator())
 		self.auto_ctrl = wx.CheckBox(self, wx.ID_ANY, '')
-		self.baud_ctrl = wx.ComboBox(self, wx.ID_ANY, '9600'
+		self.baud_ctrl = wx.ComboBox(self, wx.ID_ANY, ''
 			, choices=[str(x) for x in baud_values]
 			, validator=BaudValidator())
-		self.parity_ctrl = wx.RadioBox (self, wx.ID_ANY, choices=['None', 'Even', 'Odd'])
-		self.length_ctrl = wx.ComboBox (self, wx.ID_ANY, '8'
+		self.parity_ctrl = wx.RadioBox (self, wx.ID_ANY, ''
+			, choices=['None', 'Even', 'Odd'])
+		self.length_ctrl = wx.ComboBox (self, wx.ID_ANY, ''
 			, choices=['5', '6', '7', '8', '9']
 			, validator=LengthValidator())
 		self.stop_ctrl = wx.RadioBox (self, wx.ID_ANY, '', choices=['1', '2'])
+		
+		self.SetValue (settings)
 		
 		gs = wx.FlexGridSizer (6, 2)
 		def add_labeled_ctrl (label, ctrl):
@@ -169,23 +199,36 @@ class AnalyzerDialog (wx.Dialog):
 		
 		self.SetSizer (ts)
 		self.SetInitialSize()
+		
+	def _apply_default_settings (self, settings):
+		'''Put missing values into a settings dict.'''
+		for k, v in (('auto',0), ('baud',9600), ('length',8), ('parity',0), ('pin',0),('stop',1),):
+			if k not in settings:
+				settings[k] = v
 			
 	def SetValue (self, settings):
-		#~ print 'SetValue:', settings
+		'''Fill dialog's data fields from a settings dict.'''
 		pin = settings.get ('pin', None)
-		if pin is not None:	self.pin_ctrl.SetValue (str (pin))
+		if pin is not None:	
+			self.pin_ctrl.SetValue (str (pin))
 		auto = settings.get ('auto', None)
-		if auto is not None:	self.auto_ctrl.SetValue (int (auto))
+		if auto is not None:	
+			self.auto_ctrl.SetValue (int (auto))
 		baud = settings.get ('baud', None)
-		if baud is not None:	self.baud_ctrl.SetStringSelection (str (baud))
+		if baud is not None:	
+			self.baud_ctrl.SetStringSelection (str (baud))
 		parity = settings.get ('parity', None)
-		if parity is not None:	self.parity_ctrl.SetStringSelection (parity_settings [parity])
+		if parity is not None:	
+			self.parity_ctrl.SetStringSelection (parity_settings [parity])
 		length = settings.get ('length', None)
-		if length is not None:	self.length_ctrl.SetStringSelection (str (length))
+		if length is not None:	
+			self.length_ctrl.SetStringSelection (str (length))
 		stop = settings.get ('stop', None)
-		if stop is not None:	self.stop_ctrl.SetStringSelection (str (stop))
+		if stop is not None:	
+			self.stop_ctrl.SetStringSelection (str (stop))
 		
 	def GetValue (self):
+		'''Return a settings dict as the value of this dialog.'''
 		return {
 			'pin': optional_int (self.pin_ctrl.GetValue()),
 			'auto': optional_int (self.auto_ctrl.GetValue()),
@@ -213,7 +256,6 @@ class AnalyzerPanel (wx.ScrolledWindow):
 	def __init__ (self, parent, settings, tracedata):
 		wx.ScrolledWindow.__init__ (self, parent, wx.ID_ANY)
 		self.settings = settings
-		#~ print 'AnalyzerPanel settings:', settings
 		self.tracedata = tracedata
 		channel = self.settings['pin']
 		self.serial_data = (self.tracedata.data & (1<<channel)) != 0
@@ -221,11 +263,8 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		dg = self.display_grid = wx.grid.Grid (self, -1)
 		dg.CreateGrid (0, 5)
 		dg.SetRowLabelSize (0)
-		dg.SetColLabelValue (0, '#')
-		dg.SetColLabelValue (1, 'μSeconds')
-		dg.SetColLabelValue (2, 'Status')
-		dg.SetColLabelValue (3, 'hex')
-		dg.SetColLabelValue (4, 'ASCII')
+		for i, label in enumerate (('#', 'μSeconds', 'Status', 'hex', 'ASCII')):
+			dg.SetColLabelValue (i, label)
 		dg.SetColFormatNumber (0)
 		dg.SetColFormatFloat (1)
 		
@@ -246,14 +285,18 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		# Report contents of serial data ..
 		data = self.serial_data
 		offset = 0
-		self.parity = 0
-		self.character_length = 8
-		self.stop_bits = 1
-		samples_per_char = (1 + self.character_length + self.stop_bits) * (self.tracedata.frequency / self.settings['baud'])
+		self.parity = self.settings['parity']
+		self.character_length = self.settings['length']
+		self.stop_bits = self.settings['stop']
+		samples_per_bit = self.tracedata.frequency / self.settings['baud']
+		samples_per_char = (1 + self.character_length + (self.parity!= 0) + self.stop_bits) * samples_per_bit
 		while offset < len (data):
-			c = self._match_character (data[offset:], self.parity, self.character_length, self.stop_bits, offset)
-			if c is not None:
-				self._log_data_byte (offset, c)
+			c_p = self._match_character (data[offset:], self.parity, self.character_length, self.stop_bits)
+			if c_p is not None:
+				c, p = c_p
+				if p is not None and self.parity == 2:
+					p ^= 1
+				self._log_data_byte (offset, c, p)
 				offset += samples_per_char
 			else:
 				offset += 1
@@ -275,24 +318,28 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		print 'Baud: ', self.auto_baud
 		print 'Harmonic zeros:', self._harmonic_histogram (zeros)[::-1]
 		print 'Harmonic ones:', self._harmonic_histogram (ones)[::-1]
-		self.settings['baud'] = self.auto_baud
+		self.settings['truebaud'] = self.auto_baud
+		self.settings['baud'] = nearest_baud (self.auto_baud)
 		print 'Est.baud \t%s %s\n' % (self.auto_baud, baud_difference (self.auto_baud))
 		
 	def _auto_analyze_format (self):
 		# Automatic format detection ..
-		templates = character_template_set ()
-		format_scores = dict ((k, 0) for k in templates)
+		bit_templates = dict ( (k, expand_mask_val (self.auto_bitsize, v))
+				for k, v in character_templates.items() 
+			)
+		format_scores = dict ((k, 0) for k in bit_templates)
 		#~ data = self.serial_data
 		data = np.array (self.serial_data, np.int16)
 		data_length = len (data)
 		for offset in xrange (1, data_length):
 			if data[offset-1] == 1 and data[offset] == 0:	# possible start-bit here
-				for k, (mask, val) in templates.items():
-					bitmask = expand_template (self.auto_bitsize, mask)
-					bitval = expand_template (self.auto_bitsize, val)
+				for k, (bitmask, bitval) in bit_templates.items():
 					width = len (bitmask)
 					if offset+width < data_length:
-						format_scores[k] += character_score (data[offset:offset+width], bitmask, bitval, k, self.auto_bitsize)
+						format_scores[k] += character_score (data[offset:offset+width]
+								, bitmask, bitval
+								, k, self.auto_bitsize
+							)
 		print 'Score signs:', score_signs
 		scores = [(v, k) for k, v in format_scores.items()]
 		scores.sort()
@@ -311,31 +358,41 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		harmonic.sort()
 		return harmonic
 		
-	def _log_data_byte (self, sample, byte):
+	def _log_data_byte (self, sample, byte, parity):
 		dg, r = self._new_row ()
 		self._log_header (dg, r, sample)
 		dg.SetCellValue (r, 3, '0x%02x' % (byte,))
-		dg.SetCellValue (r, 4, ASCII_ctl_chars.get (byte, chr (byte)))
+		try:
+			dg.SetCellValue (r, 4, ASCII_ctl_chars.get (byte, chr (byte)))
+		except UnicodeDecodeError:
+			dg.SetCellValue (r, 4, '')
+		if parity is not None and parity != byte_parity (byte):
+			dg.SetCellValue (r, 2, ' PAR')
 			
 	def _log_header (self, dg, r, sample):
 		dg.SetCellValue (r, 0, str (sample))
 		dg.SetCellValue (r, 1, str (self._sample_time (sample)*1e6))
 		
-	def _match_character (self, data, parity, length, stop, offset):
+	def _match_character (self, data, parity, length, stop):
+		'''Return a data character and its parity from the serial stream.'''
 		w = self.tracedata.frequency / self.settings['baud']
 		try:
-			for b in data[:w-2]:
-				if b != 0:
-					return None	# invalid start bit
-			plength = length + (parity!=0)
-			for b in data[(1+plength)*w+2:(1+plength+stop)*w-2]:
-				if b != 1:
-					return None	# invalid stop bit
+			if (data[:w-2] != 0).any():
+				return None	# invalid start bit
+			plength = length + (parity != 0)
+			first_stop = (1+plength)*w
+			last_stop = first_stop + stop*w
+			if (data[first_stop+2 : last_stop-2] !=1).any():
+				return None	# invalid stop bit
 			bits = [data[bx] for bx in xrange (int ((w*3) / 2), plength*w, w)]
 			v = 0
 			for b in bits[::-1]:
 				v = v * 2 + b
-			return v
+			if parity:
+				p = data[(1+length)*w + w/2]
+			else:
+				p = None
+			return v, p
 		except IndexError:
 			return None
 
@@ -383,13 +440,6 @@ class AnalyzerFrame (analyzer_tools.AnalyzerFrame):
 		'''Set the title for this window.'''
 		analyzer_tools.AnalyzerFrame.SetTitle (self, '%s - %s' % (title, tool_title_string))
 
-
-def GCD (n1, n2):
-	if n1 < n2:
-		n1, n2 = n2, n1
-	while n2:
-		n1, n2 = n2, n1 % n2
-	return n1
 		
 # Test jig ...
 if __name__ == '__main__':
