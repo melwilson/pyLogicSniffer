@@ -133,9 +133,8 @@ def character_template_set ():
 	
 character_templates = character_template_set()	# for bitstream analysis later
 	
-def sign (n):	return -1 if n < 0 else 0 if n == 0 else 1
+def sign (n):	return 1 if n > 0 else -1 if n < 0 else 0
 		
-score_signs = [0, 0, 0]
 def character_score (samples, mask, val, (parity, length, stops), bitwidth):
 	'''Score a sample slice for its match with a template.'''
 	if parity:
@@ -145,23 +144,19 @@ def character_score (samples, mask, val, (parity, length, stops), bitwidth):
 			val[parx: parx+bitwidth] ^= samples[i: i+bitwidth]	# accumulate character parity
 	matches = (samples == val) * 2 - 1	# array of -1..1 for no-match..match
 	result = sum (matches * mask)		# score only significant sample bits
-	score_signs [sign (result)+1] += 1
 	return result
 
 #===========================================================
 class AnalyzerDialog (wx.Dialog):
 	'''Edit settings for UART tool.'''
+	default_settings = (('auto',0), ('baud',9600), ('length',8), ('parity',0), ('pin',0), ('stop',1),)
+	
 	def __init__ (self, parent, settings=None):
 		wx.Dialog.__init__ (self, parent, wx.ID_ANY, tool_title_string+' Settings')
 		
 		if settings is None:
 			settings = {}
 		self._apply_default_settings (settings)
-				
-		#~ print 'AnalyzerDialog settings:'
-		#~ for k, v in settings.items():
-			#~ print '%r:\t%r' % (k, v)
-		#~ print
 		
 		self.pin_ctrl = wx.TextCtrl (self, wx.ID_ANY, '0', validator=PinValidator())
 		self.auto_ctrl = wx.CheckBox(self, wx.ID_ANY, '')
@@ -189,9 +184,6 @@ class AnalyzerDialog (wx.Dialog):
 		add_labeled_ctrl ('Parity', self.parity_ctrl)
 		add_labeled_ctrl ('Length', self.length_ctrl)
 		add_labeled_ctrl ('Stop', self.stop_ctrl)
-		
-		if settings is not None:
-			self.SetValue (settings)
 			
 		ts = wx.BoxSizer (wx.VERTICAL)
 		ts.Add (gs, 1, wx.ALIGN_CENTER)
@@ -202,7 +194,7 @@ class AnalyzerDialog (wx.Dialog):
 		
 	def _apply_default_settings (self, settings):
 		'''Put missing values into a settings dict.'''
-		for k, v in (('auto',0), ('baud',9600), ('length',8), ('parity',0), ('pin',0),('stop',1),):
+		for k, v in self.default_settings:
 			if k not in settings:
 				settings[k] = v
 			
@@ -278,23 +270,25 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		
 	def Analyze (self):
 		'''Construct a UART interpretation of the trace data.'''
-		if self.settings['auto'] or True:
+		if self.settings['auto']:
 			self._auto_analyze_baud ()
 			self._auto_analyze_format ()
+			self.settings['auto'] = False
 			
 		# Report contents of serial data ..
+		parity= self.settings['parity']
+		character_length = self.settings['length']
+		stop_bits = self.settings['stop']
+		samples_per_bit = self.tracedata.frequency / self.settings['baud']
+		samples_per_char = (1 + character_length + (parity!= 0) + stop_bits) * samples_per_bit
+		
 		data = self.serial_data
 		offset = 0
-		self.parity = self.settings['parity']
-		self.character_length = self.settings['length']
-		self.stop_bits = self.settings['stop']
-		samples_per_bit = self.tracedata.frequency / self.settings['baud']
-		samples_per_char = (1 + self.character_length + (self.parity!= 0) + self.stop_bits) * samples_per_bit
-		while offset < len (data):
-			c_p = self._match_character (data[offset:], self.parity, self.character_length, self.stop_bits)
+		while offset+samples_per_char < len (data):
+			c_p = self._match_character (data[offset:], parity, character_length, stop_bits)
 			if c_p is not None:
 				c, p = c_p
-				if p is not None and self.parity == 2:
+				if p is not None and parity== 2:
 					p ^= 1
 				self._log_data_byte (offset, c, p)
 				offset += samples_per_char
@@ -310,17 +304,11 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		zeros.sort()
 		ones = [(c, d) for (d, c) in self.hist[1].items()]
 		ones.sort()
-		print 'Zeros (count, duration):', zeros[::-1]
-		print 'Ones  (count, duration):', ones[::-1]
-		print 'Clock:', self.tracedata.frequency, 'Hz'
 		self.auto_bitsize = zeros[-1][1]
-		self.auto_baud = self.tracedata.frequency / self.auto_bitsize
-		print 'Baud: ', self.auto_baud
-		print 'Harmonic zeros:', self._harmonic_histogram (zeros)[::-1]
-		print 'Harmonic ones:', self._harmonic_histogram (ones)[::-1]
-		self.settings['truebaud'] = self.auto_baud
-		self.settings['baud'] = nearest_baud (self.auto_baud)
-		print 'Est.baud \t%s %s\n' % (self.auto_baud, baud_difference (self.auto_baud))
+		auto_baud = self.tracedata.frequency / self.auto_bitsize
+		self.settings['truebaud'] = auto_baud
+		self.settings['baud'] = nearest_baud (auto_baud)
+		print 'Auto baud:\t%s %s\n' % (auto_baud, baud_difference (auto_baud))
 		
 	def _auto_analyze_format (self):
 		# Automatic format detection ..
@@ -331,21 +319,28 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		#~ data = self.serial_data
 		data = np.array (self.serial_data, np.int16)
 		data_length = len (data)
-		for offset in xrange (1, data_length):
-			if data[offset-1] == 1 and data[offset] == 0:	# possible start-bit here
-				for k, (bitmask, bitval) in bit_templates.items():
-					width = len (bitmask)
-					if offset+width < data_length:
-						format_scores[k] += character_score (data[offset:offset+width]
-								, bitmask, bitval
-								, k, self.auto_bitsize
-							)
-		print 'Score signs:', score_signs
+		for k, (bitmask, bitval) in bit_templates.items():
+			width = len (bitmask)
+			sig_bits = float (sum (bitmask))
+			offset = 1
+			char_count = 0
+			total_score = 0.0
+			while offset < data_length-width:
+				if data[offset-1] == 1 and data[offset] == 0:	# possible start_bit here
+					score = character_score (data[offset:offset+width]
+							, bitmask, bitval
+							, k, self.auto_bitsize
+						)
+					total_score += score / sig_bits
+					char_count += 1
+					offset += width - self.auto_bitsize/2	# resume search from the middle of the stop bit
+				else:
+					offset += 1
+			format_scores[k] = total_score / char_count
 		scores = [(v, k) for k, v in format_scores.items()]
 		scores.sort()
-		print 'Format scores:'
-		for x in scores[::-1]:
-			print x
+		print 'Auto Format:', scores[-1]
+		self.settings['parity'], self.settings['length'], self.settings['stop'] = scores[-1][1]
 		
 	def _harmonic_histogram (self, ph):
 		hist = collections.defaultdict (int)
@@ -386,15 +381,15 @@ class AnalyzerPanel (wx.ScrolledWindow):
 				return None	# invalid stop bit
 			bits = [data[bx] for bx in xrange (int ((w*3) / 2), plength*w, w)]
 			v = 0
-			for b in bits[::-1]:
+			for b in bits[::-1]:	# accumulate character from bits
 				v = v * 2 + b
 			if parity:
 				p = data[(1+length)*w + w/2]
 			else:
 				p = None
-			return v, p
+			return v, p	# character value and parity
 		except IndexError:
-			return None
+			return None	# no valid character here
 
 	def _new_row (self):
 		dg = self.display_grid
