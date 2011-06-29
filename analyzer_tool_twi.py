@@ -112,7 +112,11 @@ class AnalyzerPanel (wx.ScrolledWindow):
 				self._log_start (stime)
 				bitcount = byte_count = data = 0
 			elif old_scl == scl == 1 and old_sda < sda:	# STOP condition
-				self._log_stop (stime)
+				if bitcount:	# data bits have been left hanging
+					c = analyzer_tools.partial_bits (bitcount, data)
+				else:
+					c = ''
+				self._log_stop (stime, c)
 				bitcount = byte_count = data = 0
 				
 			elif old_scl == scl == 0:
@@ -193,9 +197,10 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		dg, r = self._new_header (sample)
 		dg.SetCellValue (r, 2, 'Start')
 			
-	def _log_stop (self, sample):
+	def _log_stop (self, sample, databyte):
 		dg, r = self._new_header (sample)
 		dg.SetCellValue (r, 2, 'Stop')
+		dg.SetCellValue (r, 3, databyte)
 		
 	def _sample_time (self, sample):
 		d = self.tracedata

@@ -409,12 +409,14 @@ class MyFrame (wx.Frame):
 		wx.Frame.__init__ (self, None, wx.ID_ANY, 'Logic Sniffer')
 		self.traces = None
 		self.plugins = []
-		self.tracebook = wx.Notebook (self, wx.ID_ANY)
-		self._new_capture_page()
+		self.capture_serial = 0
 		
 		self.timescale_auto = True
 		self.timescale_tick = 1000
 		self.timescale_unit = 1000000
+		
+		self.tracebook = wx.Notebook (self, wx.ID_ANY)
+		self._new_capture_page()
 			
 		self.SetMenuBar (self._main_menu())
 		self.tracebook.Bind (wx.EVT_RIGHT_DOWN, self.OnBookRClick)
@@ -511,7 +513,8 @@ class MyFrame (wx.Frame):
 		
 	def _new_capture_page (self):
 		new_trace = TraceWindow (self.tracebook)
-		self.tracebook.AddPage (new_trace, 'Capture %d' % (self.tracebook.GetPageCount(),), select=True)
+		self.capture_serial += 1
+		self.tracebook.AddPage (new_trace, 'Capture %d' % (self.capture_serial,), select=True)
 		new_trace.graphs.Bind (wx.EVT_MOTION, self.OnGraphMouseMotion)
 		return new_trace
 		
