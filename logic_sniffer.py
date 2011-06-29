@@ -331,6 +331,15 @@ class TraceWindow (wx.Panel):
 				, thumbSize= data.read_count / self.zoom
 				, range = data.read_count
 				, refresh=True)
+
+	def Destroy (self):
+		for t in self.tool_windows:
+			t.Destroy()
+		wx.Panel.Destroy (self)
+		
+	def GetData (self):
+		'''Return the sample data set for this trace window.'''
+		return self.graphs.data
 		
 	def OnGraphRightClick (self, evt):
 		trace = evt.m_y / self.graphs.TRACE_HEIGHT + self.tracescroll
@@ -456,10 +465,10 @@ class MyFrame (wx.Frame):
 		append_bound_item (filemenu, None, itemid=wx.ID_SAVE)
 		append_bound_item (filemenu, self.OnFileSaveAs, itemid=wx.ID_SAVEAS)
 		filemenu.AppendSeparator ()
-		append_bound_item (filemenu, self.OnFileLoadSumpConfig, 'Load SUMP Config...')
-		append_bound_item (filemenu, self.OnFileSaveSumpConfigAs, 'Save SUMP Config...')
+		append_bound_item (filemenu, self.OnFileLoadSumpConfig, '&Load SUMP Config...')
+		append_bound_item (filemenu, self.OnFileSaveSumpConfigAs, 'Sa&ve SUMP Config...')
 		filemenu.AppendSeparator ()
-		append_bound_item (filemenu, None, '&Close Tab', wx.ID_CLOSE)
+		append_bound_item (filemenu, self.OnFileClose, '&Close Tab', wx.ID_CLOSE)
 		filemenu.AppendSeparator()
 		#~ append_bound_item (filemenu, None, itemid=wx.ID_PRINT)
 		#~ append_bound_item (filemenu, None, itemid=wx.ID_PAGE_SETUP)
@@ -504,6 +513,7 @@ class MyFrame (wx.Frame):
 		new_trace = TraceWindow (self.tracebook)
 		self.tracebook.AddPage (new_trace, 'Capture %d' % (self.tracebook.GetPageCount(),), select=True)
 		new_trace.graphs.Bind (wx.EVT_MOTION, self.OnGraphMouseMotion)
+		return new_trace
 		
 	def _selected_page (self):
 		return self.tracebook.GetCurrentPage()
@@ -577,6 +587,12 @@ class MyFrame (wx.Frame):
 	def OnDeviceSetup (self, evt):
 		pass
 		
+	def OnFileClose (self, evt):
+		'''Close the currently selected sample page.'''
+		x = self.tracebook.GetSelection ()
+		if x > -1:
+			self.tracebook.DeletePage (x)
+		
 	def OnFileExit (self, evt):
 		self.Destroy()
 		
@@ -600,8 +616,10 @@ class MyFrame (wx.Frame):
 	def OnFileOpen (self, evt):
 		d = wx.FileDialog (self, style=wx.FD_OPEN)
 		if d.ShowModal() == wx.ID_OK:
-			sample = logic_sniffer_save.from_file (d.GetPath())
 			tw = self._selected_page()
+			if tw.GetData() is not None:
+				tw = self._new_capture_page()
+			sample = logic_sniffer_save.from_file (d.GetPath())
 			tw.SetData (sample)
 		d.Destroy()
 		
@@ -729,6 +747,7 @@ def print_configparser_contents (cfp):
 			print '\t%s:\t%s' % (opt, cfp.get (section, opt))
 			
 def optional_path (*args):
+	'''Return a joined path it all its components exist, else None.'''
 	if None in args:
 		return None
 	else:
@@ -737,10 +756,8 @@ def optional_path (*args):
 def str_to_list (s):
 	if not s:
 		return []
-	elif ',' in s:
-		return s.split (',')
 	else:
-		return [s]
+		return s.split (',')
 	
 
 if __name__ == '__main__':
