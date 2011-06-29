@@ -34,3 +34,7 @@ class TraceData (object):
 			capture_time = time.time()
 		self.capture_time = capture_time
 		self.data = data		# data values from SUMP device
+		
+	def channel_data (self, channel):
+		'''Return samples for a single channel.'''
+		return (self.data & (1 << channel)) != 0

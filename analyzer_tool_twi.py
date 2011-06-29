@@ -26,15 +26,6 @@ tool_menu_string = '&TWI'	# recommended menu string
 tool_title_string = 'TWI'	# recommended title string
 
 
-def partial_bits (bitcount, data, msbfirst=True):
-	'''String representing a byte of less than 8 bits, default MSB first.'''
-	s = [str ((data >> i) & 1) for i in xrange (bitcount)]
-	if msbfirst:
-		return ''.join (s[::-1]) + 'x'*(8-bitcount)
-	else:
-		return 'x'*(8-bitcount) + ''.join(s)
-
-
 class AnalyzerDialog (wx.Dialog):
 	'''Edit settings for TWI tool.'''
 	def __init__ (self, parent, settings=None):
@@ -98,26 +89,17 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		
 		ts = wx.BoxSizer (wx.VERTICAL)
 		ts.Add (dg, 1, wx.EXPAND)
-		#~ self.SetAutoLayout (True)
-		#~ self.SetSizer (ts)
-		#~ ts.Fit (self)
 		self.SetSizer (ts)
 		self.SetInitialSize()
 		
 	def Analyze (self):
 		settings = self.settings
-		trace_data = self.tracedata.data
+		channel_data = self.tracedata.channel_data
 		twi_bitstream = itertools.izip (
 			itertools.count(),
-			(trace_data & (1<<settings['scl'])) != 0, 
-			(trace_data & (1<<settings['sda'])) != 0
+			channel_data (settings['scl']), 
+			channel_data (settings['sda'])
 			)
-		#~ twi_data = np.column_stack (
-			#~ np.arange (len (trace_data)),
-			#~ trace_data & (1<<settings['scl']), 
-			#~ trace_data & (1<<settings['sda'])
-			#~ )
-		#~ twi_bitstream = iter (twi_data)
 		stime, old_scl, old_sda = twi_bitstream.next()
 		data = 0
 		bitcount = 0
@@ -165,7 +147,7 @@ class AnalyzerPanel (wx.ScrolledWindow):
 			self._log_header (dg, r, stime)
 			dg.SetCellValue (r, 2, 'End')
 			if bitcount > 0:
-				dg.SetCellValue (r, 3, partial_bits (bitcount, data))
+				dg.SetCellValue (r, 3, analyzer_tools.partial_bits (bitcount, data))
 			
 	def _log_header (self, dg, r, sample):
 		dg.SetCellValue (r, 0, str (sample))

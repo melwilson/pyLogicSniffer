@@ -250,7 +250,7 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		self.settings = settings
 		self.tracedata = tracedata
 		channel = self.settings['pin']
-		self.serial_data = (self.tracedata.data & (1<<channel)) != 0
+		self.serial_data = self.tracedata.channel_data (channel)
 		
 		dg = self.display_grid = wx.grid.Grid (self, -1)
 		dg.CreateGrid (0, 5)
@@ -316,7 +316,6 @@ class AnalyzerPanel (wx.ScrolledWindow):
 				for k, v in character_templates.items() 
 			)
 		format_scores = dict ((k, 0) for k in bit_templates)
-		#~ data = self.serial_data
 		data = np.array (self.serial_data, np.int16)
 		data_length = len (data)
 		for k, (bitmask, bitval) in bit_templates.items():

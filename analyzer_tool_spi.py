@@ -135,13 +135,13 @@ class AnalyzerPanel (wx.ScrolledWindow):
 		settings = self.settings
 		pol = (settings['mode'] >> 1) & 1	# clock polarity
 		pha = settings['mode'] & 1			# sample/setup phase
-		trace_data = self.tracedata.data
+		channel_data = self.tracedata.channel_data
 		spi_data = itertools.izip (
 			itertools.count(),
-			trace_data & (1<<settings['nss']), 
-			trace_data & (1<<settings['sck']), 
-			trace_data & (1<<settings['miso']),
-			trace_data & (1<<settings['mosi'])
+			channel_data (settings['nss']), 
+			channel_data (settings['sck']), 
+			channel_data (settings['miso']),
+			channel_data (settings['mosi'])
 			)
 		stime, oldnss, oldsck, oldmiso, oldmosi = spi_data.next()
 		mosi_data = miso_data = 0

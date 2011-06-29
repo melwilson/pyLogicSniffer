@@ -226,7 +226,7 @@ class TraceGraphs (wx.Window):
 			
 		for channel in xrange (self.TRACE_MAX):
 			if self.tracedata [channel] is None:
-				tl = (data.data & (1<<channel)) != 0	# logical 0..1 trace values for the channel
+				tl = data.channel_data (channel)	# logical 0..1 trace values for the channel
 				tl = traceheight - tl * thm6			# Y-axis position for each trace point
 				self.tracedata[channel] = np.column_stack ( (np.arange (len (tl)), tl) )
 			draw_single_trace (dc, self.tracedata[channel]*(scale,1), channel*traceheight)
@@ -406,8 +406,6 @@ class MyFrame (wx.Frame):
 		self.timescale_auto = True
 		self.timescale_tick = 1000
 		self.timescale_unit = 1000000
-		
-		#~ self.print_dialog_data = wx.PrintDialogData()
 			
 		self.SetMenuBar (self._main_menu())
 		self.tracebook.Bind (wx.EVT_RIGHT_DOWN, self.OnBookRClick)
