@@ -426,9 +426,9 @@ class AnalyzerFrame (analyzer_tools.AnalyzerFrame):
 		
 	def SettingsDescription (self, settings):
 		'''Return a string describing specific settings.'''
-		e = baud_difference (settings['baud'])
+		e = baud_difference (settings['truebaud'])
 		d = '%s%s%s' % ('neo'[settings['parity']], settings['length'], settings['stop'])
-		return 'Pin:%(pin)s\tBaud:%(baud)s ' % settings + e + '\t' + d
+		return 'Pin:%(pin)s\tBaud:%(truebaud)s ' % settings + e + '\t' + d
 		
 	def SetTitle (self, title):
 		'''Set the title for this window.'''
