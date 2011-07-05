@@ -71,10 +71,14 @@ parity_settings = {
 	'n':0, 'e':1, 'o':2,
 	0:'None', 1:'Even', 2:'Odd',
 	}
-nibble_parity = {
-	0:0, 1:1, 2:1, 3:0, 4:1, 5:0, 6:0, 7:1,
-	8:1, 9:0, 10:0, 11:1, 12:0, 13:1, 14:1, 15:0
-	}
+#~ nibble_parity = {
+	#~ 0:0, 1:1, 2:1, 3:0, 4:1, 5:0, 6:0, 7:1,
+	#~ 8:1, 9:0, 10:0, 11:1, 12:0, 13:1, 14:1, 15:0
+	#~ }
+nibble_parity = (
+	0, 1, 1, 0, 1, 0, 0, 1,	# 0..7
+	1, 0, 0, 1, 0, 1, 1, 0		# 8..15
+	)
 def byte_parity (b):	return nibble_parity[(b>>4) & 0xF] ^ nibble_parity [b & 0xF]
 
 def GCD (n1, n2):
@@ -114,7 +118,7 @@ def expand_mask_val (bitwidth, (m, v)):
 	return (expand_template (bitwidth, m), expand_template (bitwidth, v))
 		
 def character_template (parity, length, stop):
-	'''Mask/value pair, and data length for matching a character format against a sample slice.'''
+	'''Mask/value pair for matching a character format against a sample slice.'''
 	# Significant fields are Start-bit, parity (if any), Stop-bit
 	mask_template = tuple ( ((n,v) for n, v in ((1,1), (length,0), (parity!=0, 1), (stop,1)) if n > 0) )
 	# Set expected values for Start and Stop bits, initialize parity field (if any)
