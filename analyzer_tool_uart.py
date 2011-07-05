@@ -274,7 +274,7 @@ class AnalyzerPanel (wx.ScrolledWindow):
 			self._auto_analyze_baud ()
 			self._auto_analyze_format ()
 			self.settings['auto'] = False
-			
+
 		# Report contents of serial data ..
 		parity= self.settings['parity']
 		character_length = self.settings['length']
@@ -426,9 +426,13 @@ class AnalyzerFrame (analyzer_tools.AnalyzerFrame):
 		
 	def SettingsDescription (self, settings):
 		'''Return a string describing specific settings.'''
-		e = baud_difference (settings['truebaud'])
+		if 'truebaud' in settings:
+			true_baud = settings['truebaud']
+			baud_string = '%s %s' % (str (true_baud), baud_difference (true_baud))
+		else:
+			baud_string = str (settings['baud'])
 		d = '%s%s%s' % ('neo'[settings['parity']], settings['length'], settings['stop'])
-		return 'Pin:%(pin)s\tBaud:%(truebaud)s ' % settings + e + '\t' + d
+		return 'Pin:%(pin)s\tBaud:' % settings + baud_string + '\t' + d
 		
 	def SetTitle (self, title):
 		'''Set the title for this window.'''
