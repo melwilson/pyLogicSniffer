@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License along with pyL
 import wx, wx.grid
 import numpy as np
 import os, sys
+from serial import SerialException
 import sump
 import sump_config_file
 from sump_settings import SumpDialog, ID_CAPTURE
@@ -28,9 +29,14 @@ time_units_values = [1000000000, 1000000, 1000, 1]
 
 # File dialog wildcard string for SUMP saved settings ..
 sump_ini_wildcards = 'SUMP INI files|*.sump.ini|INI files (*.ini)|*.ini|all files (*)|*'
+# same again for comma-separated-values ..
+csv_wildcards = 'CSV files (*.csv)|*.csv|all files (*)|*'
 		
 
 #===========================================================
+def log_error (msg):
+	sys.stderr.write ('\n\n' + msg + '\n')
+	sys.stderr.flush()
 
 #===========================================================
 class PluginTool (object):
@@ -466,6 +472,7 @@ class MyFrame (wx.Frame):
 		append_bound_item (filemenu, self.OnFileOpen, itemid=wx.ID_OPEN)
 		append_bound_item (filemenu, None, itemid=wx.ID_SAVE)
 		append_bound_item (filemenu, self.OnFileSaveAs, itemid=wx.ID_SAVEAS)
+		append_bound_item (filemenu, self.OnFileExportCsv, '&Export to CSV...')
 		filemenu.AppendSeparator ()
 		append_bound_item (filemenu, self.OnFileLoadSumpConfig, '&Load SUMP Config...')
 		append_bound_item (filemenu, self.OnFileSaveSumpConfigAs, 'Sa&ve SUMP Config...')
@@ -599,6 +606,16 @@ class MyFrame (wx.Frame):
 	def OnFileExit (self, evt):
 		self.Destroy()
 		
+	def OnFileExportCsv (self, evt):
+		'''Save the current SUMP capture to a CSV file.'''
+		d = wx.FileDialog (self		
+				, wildcard=csv_wildcards
+				, style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT)
+		page = self._selected_page()
+		if d.ShowModal() == wx.ID_OK:
+			logic_sniffer_save.to_csv (d.GetPath(), page.graphs.data)
+		d.Destroy()
+		
 	def OnFileLoadSumpConfig (self, evt):
 		'''Load the current SUMP settings from a config file.'''
 		d = wx.FileDialog (self, 'Load SUMP Settings from...'
@@ -617,6 +634,7 @@ class MyFrame (wx.Frame):
 		self._new_capture_page()
 		
 	def OnFileOpen (self, evt):
+		'''Load previously saved data into a SUMP Capture page.'''
 		d = wx.FileDialog (self, style=wx.FD_OPEN)
 		if d.ShowModal() == wx.ID_OK:
 			tw = self._selected_page()
@@ -641,6 +659,7 @@ class MyFrame (wx.Frame):
 		pass
 		
 	def OnFileSaveAs (self, evt):
+		'''Save SUMP capture data into a file.'''
 		d = wx.FileDialog (self, style=wx.FD_SAVE)
 		page = self._selected_page()
 		if d.ShowModal() == wx.ID_OK:
@@ -814,12 +833,20 @@ if __name__ == '__main__':
 	if verbose_flag:
 		print 'Plugins:', plugin_modules
 
-	sniffer = sump.SumpInterface (app_options.get ('analyzer', 'port'), int (app_options.get ('analyzer', 'baud')))
-	if verbose_flag:
-		sniffer.set_logfile (sys.stderr)
-	sniffer.reset()
-	if verbose_flag:
-		print "SUMP ID:", sniffer.id_string()
+	sump_port = app_options.get ('analyzer', 'port')
+	sump_baud = int (app_options.get ('analyzer', 'baud'))
+	try:
+		sniffer = sump.SumpInterface (sump_port, sump_baud)
+	#~ except (IOError, Exception):
+	except SerialException:
+		log_error ('Error opening SUMP interface: %r' % (sys.exc_info(),))
+		sniffer = None
+	if sniffer is not None:
+		if verbose_flag:
+			sniffer.set_logfile (sys.stderr)
+		sniffer.reset()
+		if verbose_flag:
+			print "SUMP ID:", sniffer.id_string()
 	
 	for a in args:
 		pass
