@@ -10,14 +10,23 @@ logic_sniffer.py gets its run-time options from three different sources:<ol>
 <li>Command-line options
 </ol>
 <h3>Command-line Options</h3>
-<b>logic_sniffer.py</b> [<b>--port=</b><i>p</i>][<b>-p</b> <i>p</i>] [<b>--baud=</b><i>b</i>][<b>-b</b> <i>b</i>] [<b>--verbose</b>][<b>-v</b>]
+<b>logic_sniffer.py</b> [<b>--port=</b><i>p</i>][<b>-p</b> <i>p</i>]
+[<b>--baud=</b><i>b</i>][<b>-b</b> <i>b</i>]
+[<b>--tool=</b><i>module</i>][<b>-t</b> <i>module</i>]
+[<b>--verbose</b>][<b>-v</b>]
 <dl>
 <dt><b>--port=</b><i>port</i><br /><b>-p</b> <i>port</i>
 <dd><i>port</i> is the name your operating system gives to the serial port connecting to your OpenBench Logic Sniffer.<br />
 For example: <b>--port=/dev/ttyACM0</b> for a Posix system, <b>--port=COM0</b> on a Windows system.
+
 <dt><b>--baud=</b><i>baud</i><br /><b>-b</b> <i>baud</i>
 <dd><i>baud</i> gives the baud rate for the connection to your Open Bench Logic Sniffer.<br />
 For example: <b>--baud=115200</b>
+
+<dt><b>--tool=</b><i>tool_module</i><br /><b>-t</b> <i>tool_module</i>
+<dd><i>tool_module</i> represents the name of an analyzer tool module that will be imported by logic_sniffer.py .<br />
+For example: <b>-t analyzer_tool_uart</b>
+
 <dt><b>--verbose</b><br /><b>-v</b>
 <dd>calls for extra diagnostic printouts during the logic_sniffer.py execution.
 </dl>

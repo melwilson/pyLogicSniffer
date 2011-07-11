@@ -1,0 +1,71 @@
+<html><head>
+<title>logic_sniffer.py Data Analysis Tools</title>
+<style><!--
+--></style>
+</head><body>
+<h1 align=center>logic_sniffer.py<br />Data Analysis Tools</h1>
+
+<p>A data analyzer tool module can be imported by logic_sniffer.py based on command-line options, or entries in an initialization file.
+Imported analyzer tool maodules can be run later from the main menu to give specific details about the data in a trace capture.
+
+</p>
+<p>
+The analyzer module source code should include <br />
+<code>import analyzer_tools</code><br />
+to bring in useful definitions.  The source code must define <br />
+<code>tool_menu_string = 'Menu Label'</code><br />
+to give the label for this tool in the Main Menu, and <br />
+<code>tool_title_string = 'Title Label'</code><br />
+to give (when in doubt) a string to put in the title of this analyzer's windows.
+</p>
+
+<p>
+The analyzer module source code must define <br />
+<code>class AnalyzerDialog (wx.Dialog):</code><br />
+logic_sniffer.py will run this dialog before it runs the analyzer. 
+The dialog will obtain or edit the option values that the analyzer will use.<br />
+The dialog must have these methods:
+<dl>
+<dt><code>def GetValue (self):</code><dd>return all the options in the form the analyzer will use them.
+A dict with key-strings and values is the best way to do this.  
+<dt><code>def SetValue (self, settings):</code><dd>accept option values and set those values in the appropriate dialog fields.  The argument is:
+  <dl>
+  <dt><code>settings</code><dd>None, or an object returned from GetValue giving option values.
+  If <code>settings</code> is None, <code>SetValue</code> should set up default values.
+  </dl>
+</dl>
+</p>
+<p>
+The analyzer module source code must define <br />
+<code>class AnalyzerFrame (analyzer_tools.AnalyzerFrame):</code><br />
+to create an independent window to hold the analysis report.
+After it obtains the analysis options from AnalyzerDialog, logic_sniffer.py creates this window to show the analysis.
+The frame object must have these methods, which are called by <code>analyzer_tools.AnalyzerFrame</code> to set up the analysis window:
+<dl>
+<dt><code>def CreatePanel (self, settings, tracedata):</code>
+<dd>create the analysis report.   The arguments are:
+  <dl>
+  <dt><code>settings</code>
+  <dd>the object returned by <code>AnalyzerDialog.GetValue</code> containing the analysis options.
+  <dt><code>tracedata</code>
+  <dd>a <code>logic_sniffer_classes.TraceData</code> instance which contains  all the information about the captured data.
+  </dl>
+  
+<dt><code>def SettingsDescription (self, settings):</code>
+<dd>supplies a string describing the analysis options. 
+The <code>settings</code> argument is the object returned from <code>AnalyzerDialog.GetValue</code> containing the analysis options.
+<dt><code>def SetTitle (self, title):</code>
+<dd>supplies a title string for the analysis window.
+</dl>
+</p>
+<p>
+Before AnalyzerFrame was invented, logic_sniffer.py would create an AnalyzerPanel object defined in the tool module, and put it in a page of the same notebook used for traces.
+This is deprecated, but the classes still exist as fossils in the three standard analyzers.
+</p>
+<p>For study, the simplest analyzer of the three is probably analyzer_tool_spi.py .
+The major work of importing and running analyzers is in logic_sniffer.py in the methods <code>_load_plugins</code> and <code>OnToolSelection</code>.
+</p>
+
+
+<hr />
+</body></html>
