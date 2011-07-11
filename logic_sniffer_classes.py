@@ -36,5 +36,13 @@ class TraceData (object):
 		self.data = data		# data values from SUMP device
 		
 	def channel_data (self, channel):
-		'''Return samples for a single channel.'''
+		'''Return a numpy array of samples for a single channel.'''
 		return (self.data & (1 << channel)) != 0
+		
+	def channel_set (self):
+		'''Yield the channel numbers allowed by the channel mask.'''
+		channel_mask = self.channel_mask
+		for (mask_bit, lo, hi) in ((1,0,8), (2,8,16), (4,16,24), (8,24,32)):
+			if not (channel_mask & mask_bit):	# channel_mask bits disable channels
+				for c in xrange (lo, hi):
+					yield c

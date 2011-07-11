@@ -51,11 +51,8 @@ def to_csv (path, capture):
 		writer.writerow (['read_count', capture.read_count])
 		writer.writerow (['delay_count', capture.delay_count])
 		writer.writerow (['channel_mask', capture.channel_mask])
-		def channel_set (channel_mask=capture.channel_mask):
-			for mask_bit, lo, hi in ((1,0,8), (2,8,16), (4,16,24), (8,24,32)):
-				if not (channel_mask & mask_bit):	# channel masks exclude channels
-					for x in xrange (lo, hi):
-						yield x
+
+		channel_set = capture.channel_set
 		legends = capture.legend
 		writer.writerow (['Legends'] + [legends.get (x, '') for x in channel_set()])
 		writer.writerow (['Channels'] + list (channel_set()))
