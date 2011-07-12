@@ -29,7 +29,7 @@ class SumpFlagsError (SumpError): '''Illegal combination of flags.'''
 class SumpTriggerEnableError (SumpError): '''Illegal trigger enable setting.'''
 class SumpStageError (SumpError): '''Illegal trigger stage setting.'''
 	
-def little_endian (s4):
+def big_endian (s4):
 	'''Re-cast 4 bytes as 32-bit int, MSB first.'''
 	return (ord (s4[0]) << 24) | (ord (s4[1]) << 16) | (ord (s4[2]) << 8) | s4[3]
 	
