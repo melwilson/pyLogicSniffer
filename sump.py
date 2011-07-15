@@ -22,6 +22,7 @@ import serial, sys
 import numpy as np
 SUMP_BAUD = 115200
 SUMP_PATH = '/dev/ttyACM0'
+MAX_TRIGGER_STAGES = 4
 
 class SumpError (StandardError): '''Errors raised by the SUMP client.'''
 class SumpIdError (SumpError): '''The wrong string was returned by an ID request.'''
@@ -31,11 +32,11 @@ class SumpStageError (SumpError): '''Illegal trigger stage setting.'''
 	
 def big_endian (s4):
 	'''Re-cast 4 bytes as 32-bit int, MSB first.'''
-	return (ord (s4[0]) << 24) | (ord (s4[1]) << 16) | (ord (s4[2]) << 8) | s4[3]
+	return (ord (s4[0]) << 24) | (ord (s4[1]) << 16) | (ord (s4[2]) << 8) | ord (s4[3])
 	
 def little_endian (s4):
 	'''Re-cast 4 bytes as 32-bit int, LSB first.'''
-	return (ord (s4[3]) << 24) | (ord (s4[2]) << 16) | (ord (s4[1]) << 8) | s4[0]
+	return (ord (s4[3]) << 24) | (ord (s4[2]) << 16) | (ord (s4[1]) << 8) | ord (s4[0])
 	
 class SumpDeviceSettings (object):
 	'''Sampling and trigger parameters.'''
@@ -58,14 +59,15 @@ class SumpDeviceSettings (object):
 		
 		self.trigger_enable = 'None'
 		# trigger settings, by stage ..
-		self.trigger_mask = [0]*4			# 32-bit mask for trigger channels
-		self.trigger_values = [0]*4		# 32-bit match-readings for trigger channels
-		self.trigger_delay = [0]*4			# post-trigger delay in samples
-		self.trigger_delay_unit = [0]*4		# user-preferred units for trigger_delay display
-		self.trigger_level = [0]*4			# level at which trigger stage is armed
-		self.trigger_channel = [0]*4		# channel for serial trigger
-		self.trigger_serial = [False]*4			# default parallel trigger testing
-		self.trigger_start = [True] + [False]*3	# default immediate start from stage 0
+		stages = MAX_TRIGGER_STAGES
+		self.trigger_mask = [0]*stages			# 32-bit mask for trigger channels
+		self.trigger_values = [0]*stages			# 32-bit match-readings for trigger channels
+		self.trigger_delay = [0]*stages			# post-trigger delay in samples
+		self.trigger_delay_unit = [0]*stages		# user-preferred units for trigger_delay display
+		self.trigger_level = [0]*stages			# level at which trigger stage is armed
+		self.trigger_channel = [0]*stages		# channel for serial trigger
+		self.trigger_serial = [False]*stages			# default parallel trigger testing
+		self.trigger_start = [True] + [False]*(stages-1)	# default immediate start from stage 0
 		
 	def clone (self):
 		'''Clone an independent copy of these settings.'''
@@ -109,8 +111,9 @@ class SumpInterface (object):
 	clock_rate = 100000000	# undivided clock rate, in Hz, from testing with OBLS
 	protocol_version = '1.0'
 	
-	def __init__ (self, path, baud=SUMP_BAUD):
-		self.port = serial.Serial (path, baud)
+	def __init__ (self, path, baud=SUMP_BAUD, timeout=None):
+		self.timeout = timeout
+		self.port = serial.Serial (path, baud, timeout=self.timeout)
 		self.debug_logger = None
 		self.reset()
 		
@@ -177,7 +180,7 @@ class SumpInterface (object):
 	def send_trigger_mask_settings (self, settings):
 		#~ w = self.port.write
 		w = self._trace_control ('Trigger mask')
-		for stage in xrange (4):
+		for stage in xrange (MAX_TRIGGER_STAGES):
 			m = settings.trigger_mask[stage]
 			w (chr (0xC0 | (stage << 2)))
 			w (chr (m & 0xFF))
@@ -197,7 +200,7 @@ class SumpInterface (object):
 	def send_trigger_values_settings (self, settings):
 		#~ w = self.port.write
 		w = self._trace_control ('Trigger values')
-		for stage in xrange (4):
+		for stage in xrange (MAX_TRIGGER_STAGES):
 			v = settings.trigger_values[stage]
 			w (chr (0xC1 | (stage << 2)))
 			w (chr (v & 0xFF))
@@ -219,7 +222,7 @@ class SumpInterface (object):
 	def send_trigger_configuration_settings (self, settings):
 		#~ w = self.port.write
 		w = self._trace_control ('Trigger config')
-		for stage in xrange (4):
+		for stage in xrange (MAX_TRIGGER_STAGES):
 			w (chr (0xC2 | (stage << 2)))
 			d = settings.trigger_delay[stage]
 			w (chr (d & 0xFF))
@@ -270,7 +273,7 @@ class SumpInterface (object):
 		trigger_enable = settings.trigger_enable
 		if trigger_enable == 'None':
 			# send always-trigger trigger settings
-			for stage in xrange (4):
+			for stage in xrange (MAX_TRIGGER_STAGES):
 				self._send_trigger_configuration (stage, 0, 0, 0, True, False)
 				self._send_trigger_mask (stage, 0)
 				self._send_trigger_values (stage, 0)
@@ -279,7 +282,7 @@ class SumpInterface (object):
 			self._send_trigger_configuration (0, settings.trigger_delay[0], settings.trigger_channel[0], 0, True, settings.trigger_serial[0])
 			self._send_trigger_mask (0, settings.trigger_mask[0])
 			self._send_trigger_values (0, settings.trigger_values[0])
-			for stage in xrange (1, 4):
+			for stage in xrange (1, MAX_TRIGGER_STAGES):
 				self._send_trigger_configuration (stage, 0, 0, 0, False, False)
 				self._send_trigger_mask (stage, 0)
 				self._send_trigger_values (stage, 0)
@@ -293,40 +296,44 @@ class SumpInterface (object):
 	def set_logfile (self, logfile):
 		self.debug_logger = logfile
 			
-	def query_meta_data (self):
+	def query_metadata (self):
+		'''Return metadata identifying the SUMP device, firmware, version, etc.'''
 		result = []
 		self.reset()
 		r = self.port.read
 		self.port.write ('\x04')
-		while True:
-			token = r (1)
-			if not token:		# end-of-file
-				break
-			token = ord (token)
-			if not token:		# binary 0 end-of-metadata marker
-				break
-				
-			elif token <= 0x1F:	# C-string follows token
-				v = []
-				while True:
-					x = r (1)
-					if x != '\0':
-						v .append (x)
-					else:
-						break
-				result.append ( (token, ''.join (v)) )
-				
-			elif token <= 0x3F:	# 32-bit int follows token
-				result.append ( (token, little_endian (r (4))) )
-				
-			elif token <= 0x5F:	# 8-bit int follows token
-				result.append ( (token, ord (r (1))) )
-				
-			else:
-				result.append ( (token, None) )
+		try:
+			self.port.timeout = 2		# only wait 2 seconds for devices that don't do metadata
+			while True:
+				token = r (1)
+				if not token:		# end-of-file
+					break
+				token = ord (token)
+				if not token:		# binary 0 end-of-metadata marker
+					break
+					
+				elif token <= 0x1F:	# C-string follows token
+					v = []
+					while True:
+						x = r (1)
+						if x != '\0':
+							v .append (x)
+						else:
+							break
+					result.append ( (token, ''.join (v)) )
+					
+				elif token <= 0x3F:	# 32-bit int follows token
+					result.append ( (token, big_endian (r (4))) )
+					
+				elif token <= 0x5F:	# 8-bit int follows token
+					result.append ( (token, ord (r (1))) )
+					
+				else:
+					result.append ( (token, None) )
+		finally:
+			self.port.timeout = self.timeout
 		return result
 				
-		
 	def close (self):
 		self.port.close()
 		self.port = None

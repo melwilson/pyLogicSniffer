@@ -104,6 +104,32 @@ class LabelDialog (wx.Dialog):
 		return dict ( [ (i, ctl.GetValue()) for i, ctl in enumerate (self.label_ctls) if ctl.GetValue() ] )
 
 #===========================================================
+class MetadataDialog (wx.Dialog):
+	'''Dialog to set time scale options.'''
+	def __init__ (self, parent, metadata):
+		wx.Dialog.__init__ (self, parent, wx.ID_ANY, 'SUMP Device Metadata')
+		
+		ts = wx.BoxSizer (wx.VERTICAL)
+		if not metadata:
+			ts.Add (wx.StaticText (self, -1, 'No Metadata was returned.'), 0, wx.ALL, 10)
+			
+		else:
+			from sump_metadata import headings
+			gs = wx.FlexGridSizer (0, 3)
+			gs.SetHGap (10)
+			for token, data in metadata:
+				gs.Add (wx.StaticText (self, -1, hex(token)))
+				gs.Add (wx.StaticText (self, -1, headings.get (token, '')))
+				gs.Add (wx.StaticText (self, -1, str (data)))
+			ts.Add (gs, 1, wx.ALIGN_CENTER|wx.ALL, 10)
+			
+		ts.Add (self.CreateButtonSizer (wx.OK), 0, wx.EXPAND)
+		
+		self.SetSizer (ts)
+		self.SetInitialSize()
+		
+
+#===========================================================
 class TimeScaleDialog (wx.Dialog):
 	'''Dialog to set time scale options.'''
 	def __init__ (self, parent, automatic=False, tick=100, unit=1000000):

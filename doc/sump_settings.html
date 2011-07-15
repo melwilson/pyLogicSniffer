@@ -7,7 +7,7 @@
 
 <p>Specific settings for the SUMP device are controlled from the Device Settings dialog:
 </p><p align="center">
-<img src="Screenshot-SUMP_Device_Settings.png" width="90%" />
+<img src="Screenshot-SUMP_Device_Settings-2.png" width="90%" />
 </p><p>
 The various fields are:
 <h3>Analyzer Settings</h3>
@@ -22,8 +22,16 @@ The various fields are:
     <dt>Sampling Rate<dd>selects a rate for the internal clock to generate.
     <dt>Recording Size<dd>selects the number of samples to record.
     <dt>Channel Group<dd>causes the checked channel groups to be recorded.
+    <!--
     <dt>Filter<dd>enables internal noise filtering when checked.
     <dt>Demux<dd>enables double-speed recording when checked.
+    -->
+    <dt>Pre-Processing<dd>enables one of the mutually exclusive signal processing options:
+          <dl>
+	<dt>None<dd>one sample is read in every clock cycle
+	<dt>Filter<dd>very short input pulses are ignored, reading one sample per clock cycle
+	<dt>Demux<dd>two samples are read in every clock cycle
+	</dl>
     <dt>RLE<dd>enables Run-Length-Encoded data transmission when checked.
 </dl>
 <h3>Trigger Settings</h3>

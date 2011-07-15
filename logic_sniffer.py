@@ -21,7 +21,7 @@ import sump
 import sump_config_file
 from sump_settings import SumpDialog, ID_CAPTURE
 from logic_sniffer_classes import TraceData
-from logic_sniffer_dialogs import BookLabelDialog, LabelDialog, TimeScaleDialog, TracePropertiesDialog, ZoomDialog
+from logic_sniffer_dialogs import BookLabelDialog, LabelDialog, MetadataDialog, TimeScaleDialog, TracePropertiesDialog, ZoomDialog
 import logic_sniffer_save
 
 time_units_text = ['nS', u'μS', 'mS', 'S']
@@ -486,6 +486,7 @@ class MyFrame (wx.Frame):
 		
 		viewmenu = wx.Menu()
 		menubar.Append (viewmenu, '&View')
+		append_bound_item (viewmenu, self.OnViewMetadata, '&Metadata')
 		append_bound_item (viewmenu, self.OnViewLegend, '&Legend')	# edit trace legends
 		append_bound_item (viewmenu, self.OnViewTimeScale, '&Time Scale ...')	# edit time scale units
 		append_bound_item (viewmenu, self.OnViewZoom, '&Zoom ...')
@@ -731,6 +732,13 @@ class MyFrame (wx.Frame):
 			for k, v in d.GetValue().items():
 				tw.trace_legend.SetLegend (k, v)
 		d.Destroy()
+		
+	def OnViewMetadata (self, evt):
+		if sniffer is not None:
+			metadata = sniffer.query_metadata()
+			d = MetadataDialog (self, metadata)
+			d.ShowModal()
+			d.Destroy()
 		
 	def OnViewTimeScale (self, evt):
 		d = TimeScaleDialog (self, self.timescale_auto, self.timescale_tick, self.timescale_unit)

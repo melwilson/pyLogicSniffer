@@ -22,6 +22,9 @@ import wx
 #~ import wx.richtext
 
 ID_CAPTURE = wx.NewId()	# ID number for Capture button
+MAX_CHANNELS = 32
+MAX_CHANNEL_GROUPS = 4
+MAX_TRIGGER_STAGES = 4
 	
 def bimap (a, b):
 	return dict (zip (a,b) + zip (b,a))
@@ -34,6 +37,8 @@ class LabelledValues (object):
 		self.map = bimap (labels, values)
 	def __getitem__ (self, key):
 		return self.map [key]
+	def get (self, key, default):
+		return self.map.get (key, default)
 	
 baud_rate_settings = LabelledValues (
 	['115200', '57600', '38400', '19200'], 
@@ -79,6 +84,7 @@ trigger_action_settings = LabelledValues (['Capture', 'Next Level'], [1, 0])
 trigger_arm_settings = LabelledValues (['Immediately', 'Level 1', 'Level 2', 'Level 3'], [0, 1, 2, 3])
 trigger_enable_settings = LabelledValues (['None', 'Simple', 'Complex'], [0, 1, 2])
 trigger_mode_settings = LabelledValues (['Parallel', 'Serial'], [0, 1])
+pre_process_settings = LabelledValues (['None', 'Filter', 'Demux'], [(0,0), (1,0), (0,1)])
 		
 def _frequency_with_unit (rate):
 	'''Return a frequency and unit string, normalized to Hz, KHz, MHz, etc. for easy reading.'''
@@ -100,8 +106,10 @@ Analyzer Settings
 * Sampling Rate
 * Recording Size
 * Channel Group
-* Filter
-* Demux
+* Pre-Processing
+    - None -- no special input pre-processing
+    - Filter -- input signals are de-glitched
+    - Demux -- inputs are sampled at double the sample clock
 * RLE
 
 Trigger Settings
@@ -115,7 +123,7 @@ Trigger Settings
 * * Arm
     - Immediately -- matching starts  immediately
     - Level .. -- matching starts when the trigger level reaches 1, 2, or 3
-    
+
 ** Mode	'Parallel' to trigger on simultaneous levels in several channels, 'Serial' to trigger on sequential values in one channel.
 
 ** Channel -- the input channel which is tested in Serial triggering
@@ -145,7 +153,7 @@ def debug_output (s):
 class SumpTriggerPanel (wx.Panel):
 	'''Tab-able panel with configuration for one of four Trigger Stages.'''
 	def __init__ (self, parent, stage):
-		if not (0 <= stage < 4):
+		if not (0 <= stage < MAX_CHANNELS):
 			raise ValueError, 'Illegal trigger stage: %d' % (stage,)
 		self.stage = stage
 		wx.Panel.__init__ (self, parent, -1)
@@ -183,11 +191,11 @@ class SumpTriggerPanel (wx.Panel):
 		top_sizer.Add (hs, 0, 0)
 		
 		# controls for trigger masks and values
-		self.mask_controls = [wx.CheckBox (self, -1) for i in xrange (32)]	# check boxes for bits 0..31
-		self.value_controls = [wx.CheckBox (self, -1) for i in xrange (32)]	# check boxes for bits 0..31
-		gs = wx.FlexGridSizer (3, 33)
+		self.mask_controls = [wx.CheckBox (self, -1) for i in xrange (MAX_CHANNELS)]	# check boxes for bits 0..31
+		self.value_controls = [wx.CheckBox (self, -1) for i in xrange (MAX_CHANNELS)]	# check boxes for bits 0..31
+		gs = wx.FlexGridSizer (3, MAX_CHANNELS+1)
 		gs.Add ((0,0))	# empty corner over and beside legends
-		for i in xrange (31,-1,-1):		# column legends
+		for i in xrange (MAX_CHANNELS-1,-1,-1):		# column legends
 			gs.Add (wx.StaticText (self, -1, str (i)), 0, wx.ALIGN_CENTER)
 			
 		gs.Add (wx.StaticText (self, -1, ' Mask'), 0, wx.ALIGN_CENTER_VERTICAL)	# row legend
@@ -335,18 +343,22 @@ class SumpDialog (wx.Dialog):
 		labelled_ctl (anasizer, 'Sampling Rate  ', self.sampling_rate_ctl)
 		labelled_ctl (anasizer, 'Recording Size  ', self.recording_size_ctl)
 		
-		self.group_controls = [wx.CheckBox (self, -1) for i in xrange (4)]
-		self.noise_filter_ctl = wx.CheckBox (self, -1)
-		self.demux_ctl = wx.CheckBox (self, -1)
+		self.group_controls = [wx.CheckBox (self, -1) for i in xrange (MAX_CHANNEL_GROUPS)]
+		#~ self.noise_filter_ctl = wx.CheckBox (self, -1)
+		#~ self.demux_ctl = wx.CheckBox (self, -1)
+		self.pre_process_ctl = wx.RadioBox (self, wx.ID_ANY, 'Pre-Processing',
+				choices = pre_process_settings.labels)
 		self.rle_ctl = wx.CheckBox (self, -1)
+		
 		hs = wx.BoxSizer (wx.HORIZONTAL)
 		for label, ctl in zip (('0‥7', '8‥15', '16‥23', '24‥31'), self.group_controls):
 			labelled_ctl (hs, label, ctl)
 		labelled_ctl (anasizer, 'Channel Group   ', hs)
 		hs = wx.BoxSizer (wx.HORIZONTAL)
-		labelled_ctl (hs, 'Filter ', self.noise_filter_ctl)
-		hs.Add ((0,0), 1)
-		labelled_ctl (hs, 'Demux ', self.demux_ctl)
+		#~ labelled_ctl (hs, 'Filter ', self.noise_filter_ctl)
+		#~ hs.Add ((0,0), 1)
+		#~ labelled_ctl (hs, 'Demux ', self.demux_ctl)
+		hs.Add (self.pre_process_ctl, 1, 0)
 		hs.Add ((0,0), 1)
 		labelled_ctl (hs, 'RLE ', self.rle_ctl)
 		anasizer.Add (hs, 0, wx.EXPAND)
@@ -355,7 +367,7 @@ class SumpDialog (wx.Dialog):
 		self.trigger_enable_ctl = wx.RadioBox (self, wx.ID_ANY, 'Enable', choices=trigger_enable_settings.labels)
 		self.recording_ratio_ctl = wx.ComboBox (self, wx.ID_ANY, '0/100', choices=delay_ratio_settings.labels, style=wx.CB_READONLY)
 		trigger_details = wx.Notebook (self, -1)
-		self.trigger_pages = [SumpTriggerPanel (trigger_details, stage) for stage in xrange (4)]
+		self.trigger_pages = [SumpTriggerPanel (trigger_details, stage) for stage in xrange (MAX_TRIGGER_STAGES)]
 		for p in self.trigger_pages:
 			trigger_details.AddPage (p, 'Stage %d' % (p.stage,), p.stage==0)
 			
@@ -415,7 +427,9 @@ class SumpDialog (wx.Dialog):
 	def _get_sample_rate (self):
 		'''Return the sample rate called for by these settings.'''
 		rate = sampling_rate_settings[self.sampling_rate_ctl.GetStringSelection()]
-		if self.demux_ctl.GetValue():
+		#~ if self.demux_ctl.GetValue():
+			#~ rate *= 2
+		if self.pre_process_ctl.GetStringSelection() == 'Demux':
 			rate *= 2
 		return rate
 		
@@ -459,11 +473,16 @@ class SumpDialog (wx.Dialog):
 		self.recording_size_ctl.SetStringSelection (recording_size_settings[settings.read_count])
 		
 		channel_groups = settings.channel_groups
-		for ctl, mask in zip (self.group_controls, (1, 2, 4, 8)):
-			ctl.SetValue (not (channel_groups & mask))
+		#~ for ctl, mask in zip (self.group_controls, (1, 2, 4, 8)):
+			#~ ctl.SetValue (not (channel_groups & mask))
+		for groupno, ctl in enumerate (self.group_controls):
+			ctl.SetValue (not (channel_groups & (1 << groupno)))
 			
-		self.noise_filter_ctl.SetValue (settings.filter)
-		self.demux_ctl.SetValue (settings.demux)
+		#~ self.noise_filter_ctl.SetValue (settings.filter)
+		#~ self.demux_ctl.SetValue (settings.demux)
+		pre_process = 	(settings.filter, settings.demux)
+		print "ValuesFromSettings filter, demux:", pre_process
+		self.pre_process_ctl.SetStringSelection (pre_process_settings.get (pre_process, 'None'))
 		#~ self.rle_ctl.SetValue (settings.rle???)
 		for v in delay_ratio_settings.values:
 			if settings.delay_count >= v * settings.read_count:
@@ -489,13 +508,18 @@ class SumpDialog (wx.Dialog):
 		settings.delay_count = int (settings.read_count * delay_ratio_settings [self.recording_ratio_ctl.GetValue()])
 		
 		channel_groups = 0
-		for ctl, mask in zip (self.group_controls, (1, 2, 4, 8)):
+		#~ for ctl, mask in zip (self.group_controls, (1, 2, 4, 8)):
+			#~ if ctl.GetValue():
+				#~ channel_groups |= mask
+		for groupno, ctl in enumerate (self.group_controls):
 			if ctl.GetValue():
-				channel_groups |= mask
+				channel_groups |= 1 << groupno
 		settings.channel_groups = 0xF ^ channel_groups
 		
-		settings.filter = self.noise_filter_ctl.GetValue ()
-		settings.demux = self.demux_ctl.GetValue ()
+		#~ settings.filter = self.noise_filter_ctl.GetValue ()
+		#~ settings.demux = self.demux_ctl.GetValue ()
+		print "ValuesToSettings filter, demux:", self.pre_process_ctl.GetStringSelection()
+		settings.filter, settings.demux = pre_process_settings [self.pre_process_ctl.GetStringSelection()]
 		
 		trigger_enable = settings.trigger_enable = self.trigger_enable_ctl.GetStringSelection()
 		if trigger_enable == 'None':
