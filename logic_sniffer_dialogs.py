@@ -19,9 +19,19 @@ This file is part of pyLogicSniffer.
 '''
 
 import wx
+import time
 
+freq_units_text = ['GHz', 'MHz', 'KHz', 'Hz']
 time_units_text = ['nS', 'μS', 'mS', 'S']
 time_units_values = [1000000000, 1000000, 1000, 1]
+	
+def frequency_with_units (freq):
+	'''String version of a frequency, scaled with convenient units.'''
+	for u, d in zip (freq_units_text, time_units_values):
+		if int (freq / d) > 1:
+			return '%g %s' % (float (freq) / d, u)
+	return '%g' % (freq,)
+
 
 class SimpleValidator (wx.PyValidator):
 	'''Validators with simple, sensible defaults.'''
@@ -37,13 +47,15 @@ class SimpleValidator (wx.PyValidator):
 #===========================================================
 class BookLabelDialog (wx.Dialog):
 	'''Dialog to enter labels for capture-page displays.'''
-	def __init__ (self, parent, value):
+	def __init__ (self, parent, value, capturedata=None):
 		wx.Dialog.__init__ (self, parent, wx.ID_ANY, 'Trace Legend')
 		self.label_ctrl = wx.TextCtrl (self, -1, value)
 		self.label_ctrl.SetFocus()
 		self.label_ctrl.SetSelection (-1, -1)
 		
 		ts = wx.BoxSizer (wx.VERTICAL)
+		if capturedata is not None:
+			ts.Add (self._capture_details (capturedata), 0, wx.TOP, 10)
 		hs = wx.BoxSizer (wx.HORIZONTAL)
 		hs.Add (wx.StaticText (self, wx.ID_ANY, 'Capture Label'), 0, wx.RIGHT|wx.ALIGN_CENTER_VERTICAL, 5)
 		hs.Add (self.label_ctrl, 1, wx.EXPAND)
@@ -55,6 +67,21 @@ class BookLabelDialog (wx.Dialog):
 		self.SetSizer (ts)
 		ts.Fit (self)
 		ts.SetSizeHints (self)
+		
+	def _capture_details (self, data):
+		gs = wx.FlexGridSizer (0,2)
+		gs.SetHGap (10)
+		gs.Add (wx.StaticText (self, -1, 'Captured'), 0, wx.ALIGN_RIGHT)
+		gs.Add (wx.StaticText (self, -1, time.ctime (data.capture_time)), 0, wx.ALIGN_CENTER)
+		gs.Add (wx.StaticText (self, -1, 'Rate'), 0, wx.ALIGN_RIGHT)
+		gs.Add (wx.StaticText (self, -1, frequency_with_units (data.frequency)), 0, wx.ALIGN_CENTER)
+		gs.Add (wx.StaticText (self, -1, 'Size'), 0, wx.ALIGN_RIGHT)
+		gs.Add (wx.StaticText (self, -1, str (data.read_count)), 0, wx.ALIGN_CENTER)
+		gs.Add (wx.StaticText (self, -1, 'Delayed'), 0, wx.ALIGN_RIGHT)
+		gs.Add (wx.StaticText (self, -1, str (data.delay_count)), 0, wx.ALIGN_CENTER)
+		gs.Add (wx.StaticText (self, -1, 'Mask'), 0, wx.ALIGN_RIGHT)
+		gs.Add (wx.StaticText (self, -1, hex (data.channel_mask)), 0, wx.ALIGN_CENTER)
+		return gs
 			
 	def SetValue (self, label_string):
 		self.label_ctrl.SetValue (label_string)

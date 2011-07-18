@@ -555,7 +555,7 @@ class MyFrame (wx.Frame):
 		ctrl = evt.GetEventObject()
 		page, flags = ctrl.HitTest ((evt.m_x, evt.m_y))
 		if page != wx.NOT_FOUND:
-			d = BookLabelDialog (self, ctrl.GetPageText (page))
+			d = BookLabelDialog (self, ctrl.GetPageText (page), self.tracebook.GetPage (page).GetData())
 			if d.ShowModal() == wx.ID_OK:
 				title = d.GetValue()
 				ctrl.SetPageText (page, title)
@@ -845,7 +845,6 @@ if __name__ == '__main__':
 	sump_baud = int (app_options.get ('analyzer', 'baud'))
 	try:
 		sniffer = sump.SumpInterface (sump_port, sump_baud)
-	#~ except (IOError, Exception):
 	except SerialException:
 		log_error ('Error opening SUMP interface: %r' % (sys.exc_info(),))
 		sniffer = None
