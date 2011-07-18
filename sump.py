@@ -48,6 +48,8 @@ class SumpDeviceSettings (object):
 	def default (self):
 		'''Non-impossible default settings.'''
 		# general settings ..
+		self.timeout = None
+		self.latest_first = True
 		self.divider = 2			# default sampling rate 50MHz
 		self.read_count = 4096		# default sampling size
 		self.delay_count = 2048		# default before/after 50/50
@@ -128,14 +130,21 @@ class SumpInterface (object):
 		
 	def capture (self, settings):
 		'''Request a capture.'''
+		# get local references to objects for faster execution ..
 		read_count = settings.read_count
-		mask=settings.channel_groups
+		mask = settings.channel_groups
 		read = self.port.read
 		ord_ = ord
+		
 		sys.stderr.write ('reading %d\n'% (read_count,)); sys.stderr.flush()
 		d = np.zeros ((read_count,), dtype=np.uint32)
-		self.port.write ('\x01')
-		for i in xrange (read_count-1, -1, -1):	# readings arrive most-recent-first
+		if settings.latest_first:
+			data_sequence =  xrange (read_count-1, -1, -1)	# readings arrive most-recent-first
+		else:
+			data_sequence =  xrange (read_count)
+		self.port.timeout = settings.timeout
+		self.port.write ('\x01')	# start the capture
+		for i in data_sequence:
 			v = 0
 			if not (mask & 1):	v |= ord_(read(1))
 			if not (mask & 2):	v |= ord_(read(1)) << 8
@@ -263,7 +272,7 @@ class SumpInterface (object):
 				| (settings.filter << 1)
 				| settings.demux
 			))
-		w ('\x00')	# enable RLE compression, alternate number scheme, test modes
+		w ('\x00')	# disable RLE compression, alternate number scheme, test modes
 		w ('\x00')
 		w ('\x00')
 		
@@ -302,6 +311,7 @@ class SumpInterface (object):
 		result = []
 		self.reset()
 		r = self.port.read
+		timeout = self.port.timeout	# save timeout setting to restore later
 		try:
 			self.port.timeout = 2		# only wait 2 seconds for devices that don't do metadata
 			self.port.write ('\x04')
@@ -332,7 +342,7 @@ class SumpInterface (object):
 				else:
 					result.append ( (token, None) )
 		finally:
-			self.port.timeout = self.timeout
+			self.port.timeout = timeout	# restore timeout setting
 		return result
 				
 	def close (self):

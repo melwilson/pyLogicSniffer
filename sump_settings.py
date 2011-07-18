@@ -323,12 +323,14 @@ class SumpDialog (wx.Dialog):
 		# Connection Settings
 		self.port_ctl = wx.TextCtrl (self, -1, '/dev/ttyACM?')
 		self.baud_ctl =  wx.ComboBox (self, wx.ID_ANY, '115200', choices=baud_rate_settings.labels, style=wx.CB_READONLY)
+		self.timeout_ctl = wx.TextCtrl (self, -1, '', validator=TimeoutValidator())
 		self.connection_numbering_ctl = wx.RadioBox (self, wx.ID_ANY, 'Number Scheme '
 				, choices=number_scheme_settings.labels )
 		conbox = wx.StaticBox (self, wx.ID_ANY, 'Connection Settings')
 		consizer = wx.StaticBoxSizer (conbox, wx.VERTICAL)
 		labelled_ctl (consizer, 'Port   ', self.port_ctl)
 		labelled_ctl (consizer, 'Baud ', self.baud_ctl)
+		labelled_ctl (consizer, 'Timeout ', self.timeout_ctl)
 		consizer.Add (self.connection_numbering_ctl, 0, 0)
 
 		# Analyzer Settings
@@ -344,10 +346,9 @@ class SumpDialog (wx.Dialog):
 		labelled_ctl (anasizer, 'Recording Size  ', self.recording_size_ctl)
 		
 		self.group_controls = [wx.CheckBox (self, -1) for i in xrange (MAX_CHANNEL_GROUPS)]
-		#~ self.noise_filter_ctl = wx.CheckBox (self, -1)
-		#~ self.demux_ctl = wx.CheckBox (self, -1)
 		self.pre_process_ctl = wx.RadioBox (self, wx.ID_ANY, 'Pre-Processing',
 				choices = pre_process_settings.labels)
+		self.latestfirst_ctl = wx.CheckBox (self, -1)
 		self.rle_ctl = wx.CheckBox (self, -1)
 		
 		hs = wx.BoxSizer (wx.HORIZONTAL)
@@ -355,12 +356,11 @@ class SumpDialog (wx.Dialog):
 			labelled_ctl (hs, label, ctl)
 		labelled_ctl (anasizer, 'Channel Group   ', hs)
 		hs = wx.BoxSizer (wx.HORIZONTAL)
-		#~ labelled_ctl (hs, 'Filter ', self.noise_filter_ctl)
-		#~ hs.Add ((0,0), 1)
-		#~ labelled_ctl (hs, 'Demux ', self.demux_ctl)
 		hs.Add (self.pre_process_ctl, 1, 0)
-		hs.Add ((0,0), 1)
+		hs.Add ((40,0), 0)
 		labelled_ctl (hs, 'RLE ', self.rle_ctl)
+		hs.Add ((40,0), 0)
+		labelled_ctl (hs, 'Latest-first ', self.latestfirst_ctl)
 		anasizer.Add (hs, 0, wx.EXPAND)
 		
 		# Trigger Settings
@@ -427,8 +427,6 @@ class SumpDialog (wx.Dialog):
 	def _get_sample_rate (self):
 		'''Return the sample rate called for by these settings.'''
 		rate = sampling_rate_settings[self.sampling_rate_ctl.GetStringSelection()]
-		#~ if self.demux_ctl.GetValue():
-			#~ rate *= 2
 		if self.pre_process_ctl.GetStringSelection() == 'Demux':
 			rate *= 2
 		return rate
@@ -461,6 +459,7 @@ class SumpDialog (wx.Dialog):
 		'''Fill control values from a repository.'''
 		#~ self.port_ctl.SetValue (settings.portstr)	# `portstr` is deprecated; s/b `name` in future version
 		#~ self.baud_ctl.SetStringSelection (baud_rate_settings [settings.baudrate])
+		self.timeout_ctl.SetValue ('' if settings.timeout is None else str (settings.timeout))
 		
 		sampling_clock = (settings.external << 1) | settings.inverted
 		sampling_rate = int (settings.clock_rate / settings.divider)
@@ -473,20 +472,16 @@ class SumpDialog (wx.Dialog):
 		self.recording_size_ctl.SetStringSelection (recording_size_settings[settings.read_count])
 		
 		channel_groups = settings.channel_groups
-		#~ for ctl, mask in zip (self.group_controls, (1, 2, 4, 8)):
-			#~ ctl.SetValue (not (channel_groups & mask))
 		for groupno, ctl in enumerate (self.group_controls):
 			ctl.SetValue (not (channel_groups & (1 << groupno)))
 			
-		#~ self.noise_filter_ctl.SetValue (settings.filter)
-		#~ self.demux_ctl.SetValue (settings.demux)
-		pre_process = 	(settings.filter, settings.demux)
-		print "ValuesFromSettings filter, demux:", pre_process
+		pre_process = (settings.filter, settings.demux)
 		self.pre_process_ctl.SetStringSelection (pre_process_settings.get (pre_process, 'None'))
 		#~ self.rle_ctl.SetValue (settings.rle???)
+		self.latestfirst_ctl.SetValue (settings.latest_first)
+		
 		for v in delay_ratio_settings.values:
 			if settings.delay_count >= v * settings.read_count:
-				#~ self.recording_ratio_ctl.SetValue (delay_ratio_settings[v])
 				self.recording_ratio_ctl.SetStringSelection (delay_ratio_settings[v])
 				break
 		self.trigger_enable_ctl.SetStringSelection (settings.trigger_enable)
@@ -499,6 +494,8 @@ class SumpDialog (wx.Dialog):
 		'''Create SUMP settings repository from control values.'''
 		#~ settings.portstr = self.port_ctl.GetValue()
 		#~ settings.baudrate = int (self.baud_ctl.GetStringSelection())
+		timeout = self.timeout_ctl.GetValue()
+		settings.timeout = None if timeout.lower() in ('', 'none') else float (timeout)
 		sampling_clock = sampling_clock_settings[self.sampling_clock_ctl.GetStringSelection()]
 		settings.external = sampling_clock >> 1
 		settings.inverted = sampling_clock & 1
@@ -508,18 +505,13 @@ class SumpDialog (wx.Dialog):
 		settings.delay_count = int (settings.read_count * delay_ratio_settings [self.recording_ratio_ctl.GetValue()])
 		
 		channel_groups = 0
-		#~ for ctl, mask in zip (self.group_controls, (1, 2, 4, 8)):
-			#~ if ctl.GetValue():
-				#~ channel_groups |= mask
 		for groupno, ctl in enumerate (self.group_controls):
 			if ctl.GetValue():
 				channel_groups |= 1 << groupno
 		settings.channel_groups = 0xF ^ channel_groups
 		
-		#~ settings.filter = self.noise_filter_ctl.GetValue ()
-		#~ settings.demux = self.demux_ctl.GetValue ()
-		print "ValuesToSettings filter, demux:", self.pre_process_ctl.GetStringSelection()
 		settings.filter, settings.demux = pre_process_settings [self.pre_process_ctl.GetStringSelection()]
+		settings.latest_first = self.latestfirst_ctl.GetValue()
 		
 		trigger_enable = settings.trigger_enable = self.trigger_enable_ctl.GetStringSelection()
 		if trigger_enable == 'None':
@@ -616,3 +608,7 @@ class ChannelValidator (PagedControlValidator):
 class DelayValidator (PagedControlValidator):
 	def Validate (self, parent):
 		return self.DoValidation (float, lambda v: 0 <= v <= 65535, 'Delay value must be an integer from 0 to 65535.')
+		
+class TimeoutValidator (PagedControlValidator):
+	def Validate (self, parent):
+		return self.DoValidation (str, lambda v: v.lower() in ('', 'none') or 0 <= float (v), 'Timeout value must be a number from 0 up.')
