@@ -735,8 +735,8 @@ class MyFrame (wx.Frame):
 		
 	def OnViewMetadata (self, evt):
 		if sniffer is not None:
-			metadata = sniffer.query_metadata()
-			d = MetadataDialog (self, metadata)
+			#~ d = MetadataDialog (self, sniffer.query_metadata())
+			d = MetadataDialog (self, sniffer.metadata)
 			d.ShowModal()
 			d.Destroy()
 		

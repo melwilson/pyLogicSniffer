@@ -116,6 +116,7 @@ class SumpInterface (object):
 		self.port = serial.Serial (path, baud, timeout=self.timeout)
 		self.debug_logger = None
 		self.reset()
+		self.metadata = self.query_metadata()
 		
 	def reset (self):
 		w = self.port.write
@@ -301,9 +302,9 @@ class SumpInterface (object):
 		result = []
 		self.reset()
 		r = self.port.read
-		self.port.write ('\x04')
 		try:
 			self.port.timeout = 2		# only wait 2 seconds for devices that don't do metadata
+			self.port.write ('\x04')
 			while True:
 				token = r (1)
 				if not token:		# end-of-file
