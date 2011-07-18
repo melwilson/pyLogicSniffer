@@ -531,6 +531,9 @@ class MyFrame (wx.Frame):
 		return self.tracebook.GetCurrentPage()
 				
 	def DoCapture (self):
+		if sniffer is None:
+			wx.MessageBox ('There is no SUMP device connected.', 'SUMP Error',  wx.CANCEL|wx.ICON_ERROR)
+			return
 		tw = self._selected_page()
 		wx.BeginBusyCursor()
 		sniffer.send_settings (tw.settings)
