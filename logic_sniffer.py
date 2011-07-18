@@ -136,9 +136,8 @@ class TimeLegend (wx.Panel):
 		
 class TraceLegend (wx.Panel):
 	'''Display channel numbers and legends beside the trace display.'''
-	def __init__ (self, parent, trace_max, trace_height, legends):
+	def __init__ (self, parent, trace_max, trace_height):
 		wx.Panel.__init__ (self, parent, -1)
-		self.legends = legends
 		self.trace_max = trace_max
 		self.trace_height = trace_height
 		self.SetForegroundColour (wx.RED)
@@ -152,10 +151,15 @@ class TraceLegend (wx.Panel):
 		pass
 		
 	def SetData (self, data):
-		pass
+		self.legends = data.legends
+		for channel, legend in self.legends.items():
+			self.ShowLegend (channel, legend)
 		
 	def SetLegend (self, trace, legend):
 		self.legends[trace] = legend
+		self.ShowLegend (trace, legend)
+		
+	def ShowLegend (self, trace, legend):
 		self.captions[trace].SetLabel ('%d %s' % (trace, legend))
 		w = max (c.GetSizeTuple()[0] for c in self.captions)
 		self.SetMinSize ((w, -1))
@@ -284,9 +288,6 @@ class TraceWindow (wx.Panel):
 		wx.Panel.__init__ (self, parent, wx.ID_ANY
 			, style=wx.HSCROLL|wx.VSCROLL|wx.ALWAYS_SHOW_SB
 			)
-		if legends is None:
-			legends = {}
-		self.legends = legends
 		self.zoom = 1
 		self.timescroll = 0
 		self.tracescroll = 0
@@ -294,7 +295,7 @@ class TraceWindow (wx.Panel):
 		self.tool_windows = []
 		
 		self.graphs = TraceGraphs (self)
-		self.trace_legend = TraceLegend (self, self.graphs.TRACE_MAX, self.graphs.TRACE_HEIGHT, self.legends)
+		self.trace_legend = TraceLegend (self, self.graphs.TRACE_MAX, self.graphs.TRACE_HEIGHT)
 		self.time_legend = TimeLegend (self)
 		
 		ts = wx.FlexGridSizer (2, 2)
@@ -350,7 +351,7 @@ class TraceWindow (wx.Panel):
 	def OnGraphRightClick (self, evt):
 		trace = evt.m_y / self.graphs.TRACE_HEIGHT + self.tracescroll
 		if 0 <= trace < self.graphs.TRACE_MAX:
-			d = TracePropertiesDialog (self, trace, self.legends.get (trace, ''))
+			d = TracePropertiesDialog (self, trace, self.trace_legend.legends.get (trace, ''))
 			if wx.ID_OK == d.ShowModal():
 				self.trace_legend.SetLegend (trace, d.GetValue())
 				s = self.GetContainingSizer()

@@ -53,7 +53,7 @@ def to_csv (path, capture):
 		writer.writerow (['channel_mask', capture.channel_mask])
 
 		channel_set = capture.channel_set
-		legends = capture.legend
+		legends = capture.legends
 		writer.writerow (['Legends'] + [legends.get (x, '') for x in channel_set()])
 		writer.writerow (['Channels'] + list (channel_set()))
 		data = capture.data

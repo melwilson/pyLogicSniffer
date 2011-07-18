@@ -22,14 +22,14 @@ import time
 
 class TraceData (object):
 	'''Hold results of a capture.'''
-	def __init__ (self, frequency, read_count, delay_count, channel_mask, data, legend=None, capture_time=None):
+	def __init__ (self, frequency, read_count, delay_count, channel_mask, data, legends=None, capture_time=None):
 		self.frequency = frequency
 		self.read_count = read_count
 		self.delay_count = delay_count
 		self.channel_mask = channel_mask
-		if legend is None:
-			legend = {}
-		self.legend = legend	# dictionary relating channel numbers to display-labels
+		if legends is None:
+			legends = {}
+		self.legends = legends	# dictionary relating channel numbers to display-labels
 		if capture_time is None:
 			capture_time = time.time()
 		self.capture_time = capture_time
