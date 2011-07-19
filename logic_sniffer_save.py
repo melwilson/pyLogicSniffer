@@ -18,7 +18,7 @@ This file is part of pyLogicSniffer.
     along with pyLogicSniffer.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from logic_sniffer_classes import TraceData
+from logic_sniffer_lib import TraceData
 import cPickle
 import time
 
