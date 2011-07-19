@@ -22,17 +22,6 @@ import wx
 import time
 from logic_sniffer_lib import frequency_with_units
 
-#~ freq_units_text = ['GHz', 'MHz', 'KHz', 'Hz']
-#~ time_units_text = ['nS', 'μS', 'mS', 'S']
-#~ time_units_values = [1000000000, 1000000, 1000, 1]
-	
-#~ def frequency_with_units (freq):
-	#~ '''String version of a frequency, scaled with convenient units.'''
-	#~ for u, d in zip (freq_units_text, time_units_values):
-		#~ if int (freq / d) > 1:
-			#~ return '%g %s' % (float (freq) / d, u)
-	#~ return '%g' % (freq,)
-
 
 class SimpleValidator (wx.PyValidator):
 	'''Validators with simple, sensible defaults.'''
@@ -72,16 +61,14 @@ class BookLabelDialog (wx.Dialog):
 	def _capture_details (self, data):
 		gs = wx.FlexGridSizer (0,2)
 		gs.SetHGap (10)
-		gs.Add (wx.StaticText (self, -1, 'Captured'), 0, wx.ALIGN_RIGHT)
-		gs.Add (wx.StaticText (self, -1, time.ctime (data.capture_time)), 0, wx.ALIGN_CENTER)
-		gs.Add (wx.StaticText (self, -1, 'Rate'), 0, wx.ALIGN_RIGHT)
-		gs.Add (wx.StaticText (self, -1, frequency_with_units (data.frequency)), 0, wx.ALIGN_CENTER)
-		gs.Add (wx.StaticText (self, -1, 'Size'), 0, wx.ALIGN_RIGHT)
-		gs.Add (wx.StaticText (self, -1, str (data.read_count)), 0, wx.ALIGN_CENTER)
-		gs.Add (wx.StaticText (self, -1, 'Delayed'), 0, wx.ALIGN_RIGHT)
-		gs.Add (wx.StaticText (self, -1, str (data.delay_count)), 0, wx.ALIGN_CENTER)
-		gs.Add (wx.StaticText (self, -1, 'Mask'), 0, wx.ALIGN_RIGHT)
-		gs.Add (wx.StaticText (self, -1, hex (data.channel_mask)), 0, wx.ALIGN_CENTER)
+		def data_line (caption, text):
+			gs.Add (wx.StaticText (self, -1, caption), 0, wx.ALIGN_RIGHT)
+			gs.Add (wx.StaticText (self, -1, text), 0, wx.ALIGN_CENTER)
+		data_line ('Captured', time.ctime (data.capture_time))
+		data_line ('Rate', frequency_with_units (data.frequency))
+		data_line ('Size', str (data.read_count))
+		data_line ('Delayed', str (data.delay_count))
+		data_line ('Mask', hex (data.channel_mask))
 		return gs
 			
 	def SetValue (self, label_string):
