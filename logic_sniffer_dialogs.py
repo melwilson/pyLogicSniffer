@@ -20,17 +20,18 @@ This file is part of pyLogicSniffer.
 
 import wx
 import time
+from logic_sniffer_lib import frequency_with_units
 
-freq_units_text = ['GHz', 'MHz', 'KHz', 'Hz']
-time_units_text = ['nS', 'μS', 'mS', 'S']
-time_units_values = [1000000000, 1000000, 1000, 1]
+#~ freq_units_text = ['GHz', 'MHz', 'KHz', 'Hz']
+#~ time_units_text = ['nS', 'μS', 'mS', 'S']
+#~ time_units_values = [1000000000, 1000000, 1000, 1]
 	
-def frequency_with_units (freq):
-	'''String version of a frequency, scaled with convenient units.'''
-	for u, d in zip (freq_units_text, time_units_values):
-		if int (freq / d) > 1:
-			return '%g %s' % (float (freq) / d, u)
-	return '%g' % (freq,)
+#~ def frequency_with_units (freq):
+	#~ '''String version of a frequency, scaled with convenient units.'''
+	#~ for u, d in zip (freq_units_text, time_units_values):
+		#~ if int (freq / d) > 1:
+			#~ return '%g %s' % (float (freq) / d, u)
+	#~ return '%g' % (freq,)
 
 
 class SimpleValidator (wx.PyValidator):

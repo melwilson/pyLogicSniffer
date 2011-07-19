@@ -29,7 +29,7 @@ def frequency_with_units (freq):
 	freq = float (freq)
 	for u, d in zip (freq_units_text, time_units_values):
 		fd = freq / d
-		if fd > 1:
+		if fd >= 1:
 			return '%g %s' % (fd, u)
 	return '%g' % (freq,)
 
