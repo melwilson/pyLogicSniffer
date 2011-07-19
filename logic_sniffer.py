@@ -20,20 +20,9 @@ from serial import SerialException
 import sump
 import sump_config_file
 from sump_settings import SumpDialog, ID_CAPTURE
-from logic_sniffer_classes import TraceData
 from logic_sniffer_dialogs import BookLabelDialog, LabelDialog, MetadataDialog, TimeScaleDialog, TracePropertiesDialog, ZoomDialog
+from logic_sniffer_lib import TraceData, frequency_with_units, time_with_units
 import logic_sniffer_save
-
-time_units_text = ['nS', u'μS', 'mS', 'S']
-time_units_values = [1000000000, 1000000, 1000, 1]
-
-def time_with_units (t):
-	'''Return a string with time or duration scaled reasonably.'''
-	t = float (t)
-	for unit, d in zip (time_units_text, time_units_values):
-		td = t * d
-		if abs (td) < 1000:
-			return '%g%s' % (td, unit)
 
 # File dialog wildcard string for SUMP saved settings ..
 sump_ini_wildcards = 'SUMP INI files|*.sump.ini|INI files (*.ini)|*.ini|all files (*)|*'
@@ -98,15 +87,15 @@ class TimeLegend (wx.Panel):
 			
 			def sample_time (sample):
 				'''Return time of occurence of sample #sample.'''
-				return float (sample)/data.frequency*time_units_values[1]
+				return float (sample)/data.frequency
 				
 			def place_text (text, sample):
 				tw, th = dc.GetTextExtent (text)
 				tx = min (width-tw, max (0, int (sample * scalezoom) - tw/2))
 				dc.DrawText (text, tx, 0)
 				
-			place_text ('%g%s' % (sample_time (data.delay_count-data.read_count), time_units_text[1]), 0)
-			place_text ('%g%s' % (sample_time (data.delay_count), time_units_text[1]), data.read_count-1)
+			place_text (time_with_units (sample_time (data.delay_count-data.read_count)), 0)
+			place_text (time_with_units (sample_time (data.delay_count)), data.read_count-1)
 			if 0 < data.delay_count < data.read_count:
 				place_text ('0', data.read_count - data.delay_count)
 		
