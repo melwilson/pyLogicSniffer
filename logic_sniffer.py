@@ -27,6 +27,14 @@ import logic_sniffer_save
 time_units_text = ['nS', u'μS', 'mS', 'S']
 time_units_values = [1000000000, 1000000, 1000, 1]
 
+def time_with_units (t):
+	'''Return a string with time or duration scaled reasonably.'''
+	t = float (t)
+	for unit, d in zip (time_units_text, time_units_values):
+		td = t * d
+		if abs (td) < 1000:
+			return '%g%s' % (td, unit)
+
 # File dialog wildcard string for SUMP saved settings ..
 sump_ini_wildcards = 'SUMP INI files|*.sump.ini|INI files (*.ini)|*.ini|all files (*)|*'
 # same again for comma-separated-values ..
@@ -187,16 +195,18 @@ class TraceGraphs (wx.Window):
 		self.SetMinSize ((400, 300))
 		
 	def CalcXSample (self, x):
+		'''Return the sample number at mouse position x.'''
 		if self.data is None:
 			return None
 		sample = (x + self.sample_offset) / (self.scale * self.zoom)
 		return round (sample)
 		
 	def CalcXSampleTime (self, x):
+		'''Return the time axis value at mouse position x in seconds.'''
 		if self.data is None:
 			return None
 		sample = self.CalcXSample (x)
-		sample_time = float (sample - self.data.read_count + self.data.delay_count) / self.data.frequency * time_units_values[1]
+		sample_time = float (sample - self.data.read_count + self.data.delay_count) / self.data.frequency
 		return sample_time
 			
 	def OnPaint (self, evt):
@@ -513,7 +523,7 @@ class MyFrame (wx.Frame):
 		return menubar
 			
 	def _captured_sump_data (self, settings, data):
-		return TraceData (settings.clock_rate / settings.divider	# sample frequency in Hz
+		return TraceData (settings.get_sample_rate()	# sample frequency in Hz
 				, settings.read_count	# number of samples
 				, settings.delay_count	# number of samples after trigger
 				, settings.channel_groups	# mask for suppressed channel groups
@@ -695,7 +705,7 @@ class MyFrame (wx.Frame):
 			sample = graphs.CalcXSample (evt.m_x)
 			sample_time = graphs.CalcXSampleTime (evt.m_x)
 			if sample_time is not None:
-				wx.CallAfter (self.GetStatusBar().SetStatusText, '%d -- %g%s' % (sample, sample_time, time_units_text[1]))
+				wx.CallAfter (self.GetStatusBar().SetStatusText, '%d -- %s' % (sample, time_with_units (sample_time)))
 		evt.Skip()
 		
 	def OnHelpAbout (self, evt):
