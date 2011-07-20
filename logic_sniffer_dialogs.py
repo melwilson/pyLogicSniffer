@@ -20,7 +20,7 @@ This file is part of pyLogicSniffer.
 
 import wx
 import time
-from logic_sniffer_lib import frequency_with_units
+from logic_sniffer_lib import frequency_with_units, time_units_text, time_units_values
 
 
 class SimpleValidator (wx.PyValidator):
@@ -53,10 +53,8 @@ class BookLabelDialog (wx.Dialog):
 		
 		ts.Add (self.CreateButtonSizer (wx.OK|wx.CANCEL), 0, wx.EXPAND|wx.TOP, 10)
 		
-		self.SetAutoLayout (True)
 		self.SetSizer (ts)
-		ts.Fit (self)
-		ts.SetSizeHints (self)
+		self.SetInitialSize()
 		
 	def _capture_details (self, data):
 		gs = wx.FlexGridSizer (0,2)
@@ -102,10 +100,8 @@ class LabelDialog (wx.Dialog):
 		
 		ts.Add (self.CreateButtonSizer (wx.OK|wx.CANCEL), 0, wx.EXPAND|wx.TOP, 10)
 		
-		self.SetAutoLayout (True)
 		self.SetSizer (ts)
-		ts.Fit (self)
-		ts.SetSizeHints (self)
+		self.SetInitialSize()
 			
 	def SetValue (self, valuedict):
 		for k, v in valuedict.items():
@@ -120,7 +116,7 @@ class LabelDialog (wx.Dialog):
 
 #===========================================================
 class MetadataDialog (wx.Dialog):
-	'''Dialog to set time scale options.'''
+	'''Dialog to display SUMP hardware metadata.'''
 	def __init__ (self, parent, metadata):
 		wx.Dialog.__init__ (self, parent, wx.ID_ANY, 'SUMP Device Metadata')
 		
@@ -150,7 +146,6 @@ class TimeScaleDialog (wx.Dialog):
 	def __init__ (self, parent, automatic=False, tick=100, unit=1000000):
 		wx.Dialog.__init__ (self, parent, wx.ID_ANY, 'Time Axis')
 		
-		#~ self.units = 1
 		self.default_ctrl = wx.CheckBox (self, wx.ID_ANY, 'Automatic')
 		self.tick_size_ctrl = wx.TextCtrl (self, wx.ID_ANY, '')
 		self.tick_unit_ctrl = wx.ComboBox (self, wx.ID_ANY, style=wx.CB_READONLY)
@@ -159,7 +154,6 @@ class TimeScaleDialog (wx.Dialog):
 		self.tick_unit_ctrl.SetSelection (1)
 		self.tick_unit_ctrl.SetMinSize ((60, -1))
 		
-		#~ if values is not None:
 		self.SetValue (automatic, tick, unit)
 		
 		tick_sizer = wx.BoxSizer (wx.HORIZONTAL)
@@ -172,10 +166,8 @@ class TimeScaleDialog (wx.Dialog):
 		ts.Add (tick_sizer, 1, wx.EXPAND|wx.ALL, 10)
 		ts.Add (self.CreateButtonSizer (wx.OK|wx.CANCEL), 0, wx.EXPAND)
 		
-		self.SetAutoLayout (True)
 		self.SetSizer (ts)
-		ts.Fit (self)
-		ts.SetSizeHints (self)
+		self.SetInitialSize()
 		
 	def GetValue (self):
 		return (self.default_ctrl.GetValue(), 
@@ -207,10 +199,8 @@ class TracePropertiesDialog (wx.Dialog):
 		
 		vs.Add (self.CreateButtonSizer (wx.OK|wx.CANCEL), 0, wx.EXPAND)
 		
-		self.SetAutoLayout (True)
 		self.SetSizer (vs)
-		vs.Fit (self)
-		vs.SetSizeHints (self)
+		self.SetInitialSize()
 		
 	def GetValue (self):
 		return self.label_edit.GetValue ()
@@ -233,10 +223,8 @@ class ZoomDialog (wx.Dialog):
 		ts.Add (zoom_sizer, 1, wx.EXPAND|wx.BOTTOM, 10)
 		ts.Add (self.CreateButtonSizer (wx.OK|wx.CANCEL), 0, wx.EXPAND)
 		
-		self.SetAutoLayout (True)
 		self.SetSizer (ts)
-		ts.Fit (self)
-		ts.SetSizeHints (self)
+		self.SetInitialSize()
 		
 	def GetValue (self):
 		return self.zoom_ctrl.GetValue()

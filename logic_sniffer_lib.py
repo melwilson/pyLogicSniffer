@@ -25,7 +25,7 @@ time_units_text = ['nS', u'μS', 'mS', 'S']
 time_units_values = [1000000000, 1000000, 1000, 1]
 	
 def frequency_with_units (freq):
-	'''Return a string with a frequency, scaled with convenient units.'''
+	'''Convert a frequency (in Hz) to a string, scaled appropriately.'''
 	freq = float (freq)
 	for u, d in zip (freq_units_text, time_units_values):
 		fd = freq / d
@@ -34,13 +34,14 @@ def frequency_with_units (freq):
 	return '%g' % (freq,)
 
 def time_with_units (t):
-	'''Return a string with time or duration scaled reasonably.'''
+	'''Convert a time or duration (in seconds) to a string, scaled appropriately.'''
 	t = float (t)
 	for unit, d in zip (time_units_text, time_units_values):
 		td = t * d
 		if abs (td) < 1000:
 			return '%g%s' % (td, unit)
 	return '%g' % (t,)
+
 
 class TraceData (object):
 	'''Hold results of a capture.'''
