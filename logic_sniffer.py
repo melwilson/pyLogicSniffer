@@ -15,7 +15,7 @@ You should have received a copy of the GNU General Public License along with pyL
 
 import wx, wx.grid
 import numpy as np
-import os, sys
+import os, sys, traceback
 from serial import SerialException
 import sump
 import sump_config_file
@@ -452,7 +452,6 @@ class MyFrame (wx.Frame):
 		self.plugins.append ( PluginTool (mid, module, options) )
 		menubar = self.GetMenuBar()
 		tool_menu = menubar.GetMenu (menubar.FindMenu ('&Tools'))
-		#~ tool_menu.Append (mid, module.tool_menu_string)
 		tool_menu.Prepend (mid, module.tool_menu_string)
 		wx.EVT_MENU (self, mid, self.OnToolSelection)
 		
@@ -717,15 +716,12 @@ class MyFrame (wx.Frame):
 			tool_dir, tool_file = os.path.split (d.GetPath())
 			if '.' in tool_file:
 				tool_file = tool_file.split ('.')[0]
-			print 'OnToolsLoad:', tool_file
 			try:
 				self._load_a_plugin (tool_file)
 			except StandardError:
-				#~ wx.MessageBox (repr (sys.exc_info()), 'Plugin Error', wx.ICON_ERROR|wx.CANCEL)
+				msg = traceback.format_exc()
 				wx.MessageBox (
-						#~ str (sys.exc_info()[1]) + '\n' + str (sys.exc_info()[2])
-						#~ , 'Plugin Error - ' + str (sys.exc_info()[0])
-						'in %s\n%s' % (tool_file, str (sys.exc_info()[1]),)
+						'Importing %s\n\n%s' % (tool_file, msg,)
 						, 'Plugin Error'
 						, wx.ICON_ERROR|wx.CANCEL
 						)
