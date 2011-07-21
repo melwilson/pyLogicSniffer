@@ -444,7 +444,9 @@ class MyFrame (wx.Frame):
 		top_sizer.Fit (self)
 		top_sizer.SetSizeHints (self)
 		
-	def _load_a_plugin (self, tool_name, options={}):
+	def _load_a_plugin (self, tool_name, options=None):
+		if options is None:
+			options = {}	# create an empty dict to collect plugin options
 		module = __import__ (tool_name)
 		mid = wx.NewId()
 		self.plugins.append ( PluginTool (mid, module, options) )
