@@ -28,6 +28,8 @@ import logic_sniffer_save
 sump_ini_wildcards = 'SUMP INI files|*.sump.ini|INI files (*.ini)|*.ini|all files (*)|*'
 # same again for comma-separated-values ..
 csv_wildcards = 'CSV files (*.csv)|*.csv|all files (*)|*'
+# same again for Python ..
+python_wildcards = 'Python files (*.py;*.pyc)|*.py;*.pyc|all files (*)|*'
 		
 
 #===========================================================
@@ -442,18 +444,22 @@ class MyFrame (wx.Frame):
 		top_sizer.Fit (self)
 		top_sizer.SetSizeHints (self)
 		
+	def _load_a_plugin (self, tool_name, options={}):
+		module = __import__ (tool_name)
+		mid = wx.NewId()
+		self.plugins.append ( PluginTool (mid, module, options) )
+		menubar = self.GetMenuBar()
+		tool_menu = menubar.GetMenu (menubar.FindMenu ('&Tools'))
+		#~ tool_menu.Append (mid, module.tool_menu_string)
+		tool_menu.Prepend (mid, module.tool_menu_string)
+		wx.EVT_MENU (self, mid, self.OnToolSelection)
+		
 	def _load_plugins (self, registered_plugin_tools):
 		'''Finish off the main menu with external plugin modules.'''
 		for pt in registered_plugin_tools:
 			if not pt:	# glitches in option handling can give us empty module names
 				continue
-			module = __import__ (pt)
-			mid = wx.NewId()
-			self.plugins.append ( PluginTool (mid, module, registered_plugin_tools[pt]) )
-			menubar = self.GetMenuBar()
-			tool_menu = menubar.GetMenu (menubar.FindMenu ('&Tools'))
-			tool_menu.Append (mid, module.tool_menu_string)
-			wx.EVT_MENU (self, mid, self.OnToolSelection)
+			self._load_a_plugin (pt, registered_plugin_tools[pt])
 		
 	def _main_menu (self):
 		'''Quasi-boilerplate to create the main menu.'''
@@ -504,7 +510,8 @@ class MyFrame (wx.Frame):
 		
 		toolmenu = wx.Menu()
 		menubar.Append (toolmenu, '&Tools')
-		append_bound_item (toolmenu, self.OnToolsTraces, '&Traces')	# default trace-graphing screen
+		toolmenu.AppendSeparator()
+		append_bound_item (toolmenu, self.OnToolsLoad, '&Load')	# Load an analyzer tool
 		
 		helpmenu = wx.Menu()
 		menubar.Append (helpmenu, '&Help')
@@ -700,6 +707,28 @@ class MyFrame (wx.Frame):
 	def OnHelpAbout (self, evt):
 		wx.MessageBox (__doc__, 'About %s' % (os.path.split (__file__)[-1],), style=wx.ICON_INFORMATION|wx.OK)
 		
+	def OnToolsLoad (self, evt):
+		d = wx.FileDialog (self, 'Python Tool Modules'
+				, wildcard=python_wildcards
+				, style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST)
+		if d.ShowModal() == wx.ID_OK:
+			tool_dir, tool_file = os.path.split (d.GetPath())
+			if '.' in tool_file:
+				tool_file = tool_file.split ('.')[0]
+			print 'OnToolsLoad:', tool_file
+			try:
+				self._load_a_plugin (tool_file)
+			except StandardError:
+				#~ wx.MessageBox (repr (sys.exc_info()), 'Plugin Error', wx.ICON_ERROR|wx.CANCEL)
+				wx.MessageBox (
+						#~ str (sys.exc_info()[1]) + '\n' + str (sys.exc_info()[2])
+						#~ , 'Plugin Error - ' + str (sys.exc_info()[0])
+						'in %s\n%s' % (tool_file, str (sys.exc_info()[1]),)
+						, 'Plugin Error'
+						, wx.ICON_ERROR|wx.CANCEL
+						)
+		d.Destroy()
+		
 	def OnToolSelection (self, evt):
 		'''Open a page or window for the selected plugin analysis tool.'''
 		event_id = evt.GetId()
@@ -724,9 +753,6 @@ class MyFrame (wx.Frame):
 					self.tracebook.AddPage (page, '%s %d' % (plugin.module.tool_title_string, self.tracebook.GetPageCount(),), select=True)
 		finally:	# application might hang on shutdown if dlg crashes because of an error
 			dlg.Destroy()
-		
-	def OnToolsTraces (self, evt):
-		pass
 		
 	def OnViewLegend (self, evt):
 		tw = self._selected_page()
