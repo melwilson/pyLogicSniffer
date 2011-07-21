@@ -859,17 +859,23 @@ if __name__ == '__main__':
 		print_configparser_contents (app_options)
 		print
 	
+	# Collect info on all plugin modules from the .ini file ..
 	plugin_modules = {}
 	for s in app_options.sections():
 		if s.startswith ('plugin'):
 			d = dict (app_options.items (s))
-			if d['module'] not in plugin_modules:
-				plugin_modules[d['module']] = d
+			if 'module' in d:
+				module_name = d['module']
 			else:
-				plugin_modules[d['module']].update (d)
+				module_name = s.split (None, 1)[1]	# use the extra field from the section header
+			if module_name not in plugin_modules:
+				plugin_modules[module_name] = d
+			else:
+				plugin_modules[module_name].update (d)
 	if verbose_flag:
 		print 'Plugins:', plugin_modules
 
+	# Open up a sniffer device interface ..
 	sump_port = app_options.get ('analyzer', 'port')
 	sump_baud = int (app_options.get ('analyzer', 'baud'))
 	try:
